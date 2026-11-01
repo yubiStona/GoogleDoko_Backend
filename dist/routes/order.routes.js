@@ -12,5 +12,6 @@ const router = (0, express_1.Router)();
 router.use(auth_middleware_1.authenticate);
 router.post("/", order_validator_1.createOrderValidator, validation_middleware_1.validateRequest, order_controller_1.default.create);
 router.get("/", order_controller_1.default.getUserOrders);
+router.get("/:id/track", order_controller_1.default.getTracking);
 router.get("/:id", order_controller_1.default.getOne);
 exports.default = router;

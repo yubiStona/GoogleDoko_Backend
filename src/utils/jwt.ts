@@ -6,8 +6,24 @@ export interface JwtPayload {
   role: UserRole | string;
 }
 
+const revokedTokens = new Set<string>();
+
+export const revokeToken = (token: string): void => {
+  revokedTokens.add(token);
+};
+
+export const isTokenRevoked = (token: string): boolean => {
+  return revokedTokens.has(token);
+};
+
 const getJwtSecret = (): string => {
-  const secret = process.env.JWT_SECRET || "GoogleDoko_Secret_Key_2026";
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("JWT_SECRET must be configured in environment variables.");
+    }
+    return "GoogleDoko_Dev_Secret_Key_2026";
+  }
   return secret;
 };
 

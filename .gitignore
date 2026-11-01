@@ -1,8 +1,8 @@
 node_modules/
 dist/
 .env
-<<<<<<< HEAD
+.env.local
 uploads/
-=======
->>>>>>> origin/main
 .DS_Store
+*.log
+coverage/

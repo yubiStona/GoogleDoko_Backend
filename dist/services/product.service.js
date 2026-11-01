@@ -20,8 +20,48 @@ class ProductService {
         if (filters?.maxPrice !== undefined) {
             qb.andWhere("product.price <= :maxPrice", { maxPrice: filters.maxPrice });
         }
-        qb.orderBy("product.id", "ASC");
+        if (filters?.sort === "price_asc") {
+            qb.orderBy("product.price", "ASC");
+        }
+        else if (filters?.sort === "price_desc") {
+            qb.orderBy("product.price", "DESC");
+        }
+        else if (filters?.sort === "popular") {
+            qb.orderBy("product.rating", "DESC").addOrderBy("product.id", "ASC");
+        }
+        else if (filters?.sort === "latest") {
+            qb.orderBy("product.createdAt", "DESC").addOrderBy("product.id", "DESC");
+        }
+        else if (filters?.sort === "rating") {
+            qb.orderBy("product.rating", "DESC");
+        }
+        else {
+            qb.orderBy("product.id", "ASC");
+        }
+        if (filters?.limit) {
+            qb.take(filters.limit);
+            if (filters.page && filters.page > 1) {
+                qb.skip((filters.page - 1) * filters.limit);
+            }
+        }
         return await qb.getMany();
+    }
+    async getPopularProducts(limit = 8) {
+        return this.getProducts({
+            sort: "popular",
+            limit,
+        });
+    }
+    async getFeaturedProducts(limit = 8) {
+        return this.getProducts({
+            limit,
+        });
+    }
+    async getLatestProducts(limit = 8) {
+        return this.getProducts({
+            sort: "latest",
+            limit,
+        });
     }
     async getProductById(id) {
         const product = await repository_1.productRepository.findOne({
@@ -38,11 +78,12 @@ class ProductService {
             category,
         });
     }
-    async createProduct(data) {
+    async createProduct(data, userId, role) {
         const id = data.id || `PROD-${Date.now()}`;
         const product = repository_1.productRepository.create({
             ...data,
             id,
+            vendorUserId: role === "vendor" ? userId : (data.vendorUserId ?? null),
             stock: data.stock ?? 100,
             active: data.active ?? 1,
             rating: data.rating ?? 4.8,
@@ -52,22 +93,28 @@ class ProductService {
         });
         return await repository_1.productRepository.save(product);
     }
-    async updateProduct(id, data) {
+    async updateProduct(id, data, userId, role) {
         const product = await repository_1.productRepository.findOne({
             where: { id },
         });
         if (!product) {
             throw new Error("PRODUCT_NOT_FOUND");
         }
+        if (role === "vendor" && product.vendorUserId !== userId) {
+            throw new Error("FORBIDDEN");
+        }
         Object.assign(product, data);
         return await repository_1.productRepository.save(product);
     }
-    async deleteProduct(id) {
+    async deleteProduct(id, userId, role) {
         const product = await repository_1.productRepository.findOne({
             where: { id },
         });
         if (!product) {
             throw new Error("PRODUCT_NOT_FOUND");
+        }
+        if (role === "vendor" && product.vendorUserId !== userId) {
+            throw new Error("FORBIDDEN");
         }
         await repository_1.productRepository.remove(product);
     }

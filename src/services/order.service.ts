@@ -61,9 +61,8 @@ export class OrderService {
       ? body.paymentMethod!
       : "Cash on Delivery";
 
-    const paymentStatus = ["eSewa Mobile Wallet", "Khalti Wallet"].includes(paymentMethod)
-      ? "Paid"
-      : "Pending";
+    // Orders always begin as Pending until server-side gateway verification
+    const paymentStatus = "Pending";
 
     const orderId = body.id || `GD-${crypto.randomUUID()}`;
 
@@ -104,9 +103,11 @@ export class OrderService {
       const items: any[] = [];
 
       for (const [productId, quantity] of quantities) {
-        const product = await txProductRepo.findOne({
-          where: { id: productId, active: 1 },
-        });
+        const product = await txProductRepo
+          .createQueryBuilder("product")
+          .setLock("pessimistic_write")
+          .where("product.id = :id AND product.active = 1", { id: productId })
+          .getOne();
 
         if (!product || product.stock < quantity) {
           throw new Error("INSUFFICIENT_STOCK");
@@ -163,8 +164,6 @@ export class OrderService {
             await txCouponRepo.save(coupon);
           }
         }
-      } else if (body.discount) {
-        discount = Math.max(0, Number(body.discount) || 0);
       }
 
       const total = Math.max(0, subtotal + deliveryFee - discount);
@@ -300,6 +299,53 @@ export class OrderService {
     }
 
     return await orderRepository.save(order);
+  }
+
+  async getOrderTracking(orderId: string, userId?: number): Promise<any> {
+    const order = await this.getOrderById(orderId, userId);
+    const status = order.status || "Pending";
+    const steps = [
+      { step: "Order Placed", date: order.date, status: "complete" },
+      {
+        step: "Confirmed by Farmer",
+        date: status !== "Pending" && status !== "Cancelled" ? order.date : "Pending",
+        status: ["Processing", "Shipped", "Delivered"].includes(status)
+          ? "complete"
+          : status === "Pending"
+          ? "current"
+          : "pending",
+      },
+      {
+        step: "Shipped & In Transit",
+        date: ["Shipped", "Delivered"].includes(status) ? order.date : "Pending",
+        status: ["Shipped", "Delivered"].includes(status)
+          ? "complete"
+          : status === "Processing"
+          ? "current"
+          : "pending",
+      },
+      {
+        step: "Delivered",
+        date: status === "Delivered" ? order.date : "Pending",
+        status: status === "Delivered" ? "complete" : status === "Shipped" ? "current" : "pending",
+      },
+    ];
+
+    return {
+      orderId: order.id,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      recipientName: order.recipientName,
+      deliveryAddress: order.deliveryAddress,
+      recipientPhone: order.recipientPhone,
+      items: JSON.parse(order.itemsJson || "[]"),
+      total: order.total,
+      subtotal: order.subtotal,
+      deliveryFee: order.deliveryFee,
+      discount: order.discount,
+      steps,
+    };
   }
 }
 

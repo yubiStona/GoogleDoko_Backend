@@ -39,6 +39,40 @@ export class CheckoutController {
       sendError(res, 500, messages.common.internalServerError);
     }
   }
+
+  async verifyEsewa(req: Request, res: Response): Promise<void> {
+    try {
+      const result = await checkoutService.verifyEsewaPayment(req.body);
+      sendSuccess(res, 200, "eSewa payment verified successfully.", result);
+    } catch (error: any) {
+      if (error?.message === "ORDER_NOT_FOUND") {
+        sendError(res, 404, messages.order.notFound);
+        return;
+      }
+      if (error?.message === "PAYMENT_AMOUNT_MISMATCH") {
+        sendError(res, 400, "Payment amount does not match the order total.");
+        return;
+      }
+      sendError(res, 400, error?.message || "eSewa payment verification failed.");
+    }
+  }
+
+  async verifyKhalti(req: Request, res: Response): Promise<void> {
+    try {
+      const result = await checkoutService.verifyKhaltiPayment(req.body);
+      sendSuccess(res, 200, "Khalti payment verified successfully.", result);
+    } catch (error: any) {
+      if (error?.message === "ORDER_NOT_FOUND") {
+        sendError(res, 404, messages.order.notFound);
+        return;
+      }
+      if (error?.message === "PAYMENT_AMOUNT_MISMATCH") {
+        sendError(res, 400, "Payment amount does not match the order total.");
+        return;
+      }
+      sendError(res, 400, error?.message || "Khalti payment verification failed.");
+    }
+  }
 }
 
 export default new CheckoutController();

@@ -52,6 +52,20 @@ export class OrderController {
       sendError(res, 500, messages.common.internalServerError);
     }
   }
+
+  async getTracking(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const tracking = await orderService.getOrderTracking(String(req.params.id), userId);
+      sendSuccess(res, 200, "Order tracking retrieved successfully", tracking);
+    } catch (error: any) {
+      if (error?.message === "ORDER_NOT_FOUND") {
+        sendError(res, 404, messages.order.notFound);
+        return;
+      }
+      sendError(res, 500, messages.common.internalServerError);
+    }
+  }
 }
 
 export default new OrderController();

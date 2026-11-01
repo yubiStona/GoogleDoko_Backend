@@ -12,7 +12,7 @@ const authenticate = (req, res, next) => {
         return;
     }
     const token = authorization.split(" ")[1];
-    if (!token) {
+    if (!token || (0, jwt_1.isTokenRevoked)(token)) {
         (0, response_helper_1.sendError)(res, 401, message_helper_1.messages.auth.authenticationRequired);
         return;
     }

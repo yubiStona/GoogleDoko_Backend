@@ -57,6 +57,20 @@ class OrderController {
             (0, response_helper_1.sendError)(res, 500, message_helper_1.messages.common.internalServerError);
         }
     }
+    async getTracking(req, res) {
+        try {
+            const userId = req.user?.id;
+            const tracking = await order_service_1.default.getOrderTracking(String(req.params.id), userId);
+            (0, response_helper_1.sendSuccess)(res, 200, "Order tracking retrieved successfully", tracking);
+        }
+        catch (error) {
+            if (error?.message === "ORDER_NOT_FOUND") {
+                (0, response_helper_1.sendError)(res, 404, message_helper_1.messages.order.notFound);
+                return;
+            }
+            (0, response_helper_1.sendError)(res, 500, message_helper_1.messages.common.internalServerError);
+        }
+    }
 }
 exports.OrderController = OrderController;
 exports.default = new OrderController();

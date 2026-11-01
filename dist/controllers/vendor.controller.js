@@ -56,6 +56,17 @@ class VendorController {
             (0, response_helper_1.sendError)(res, 500, message_helper_1.messages.common.internalServerError);
         }
     }
+    async getVendorOrders(req, res) {
+        try {
+            const userId = req.user.id;
+            const orders = await vendor_service_1.default.getVendorOrders(userId);
+            (0, response_helper_1.sendSuccess)(res, 200, "Vendor orders retrieved successfully", orders);
+        }
+        catch (error) {
+            console.error("Get vendor orders error:", error);
+            (0, response_helper_1.sendError)(res, 500, message_helper_1.messages.common.internalServerError);
+        }
+    }
 }
 exports.VendorController = VendorController;
 exports.default = new VendorController();

@@ -44,6 +44,40 @@ class CheckoutController {
             (0, response_helper_1.sendError)(res, 500, message_helper_1.messages.common.internalServerError);
         }
     }
+    async verifyEsewa(req, res) {
+        try {
+            const result = await checkout_service_1.default.verifyEsewaPayment(req.body);
+            (0, response_helper_1.sendSuccess)(res, 200, "eSewa payment verified successfully.", result);
+        }
+        catch (error) {
+            if (error?.message === "ORDER_NOT_FOUND") {
+                (0, response_helper_1.sendError)(res, 404, message_helper_1.messages.order.notFound);
+                return;
+            }
+            if (error?.message === "PAYMENT_AMOUNT_MISMATCH") {
+                (0, response_helper_1.sendError)(res, 400, "Payment amount does not match the order total.");
+                return;
+            }
+            (0, response_helper_1.sendError)(res, 400, error?.message || "eSewa payment verification failed.");
+        }
+    }
+    async verifyKhalti(req, res) {
+        try {
+            const result = await checkout_service_1.default.verifyKhaltiPayment(req.body);
+            (0, response_helper_1.sendSuccess)(res, 200, "Khalti payment verified successfully.", result);
+        }
+        catch (error) {
+            if (error?.message === "ORDER_NOT_FOUND") {
+                (0, response_helper_1.sendError)(res, 404, message_helper_1.messages.order.notFound);
+                return;
+            }
+            if (error?.message === "PAYMENT_AMOUNT_MISMATCH") {
+                (0, response_helper_1.sendError)(res, 400, "Payment amount does not match the order total.");
+                return;
+            }
+            (0, response_helper_1.sendError)(res, 400, error?.message || "Khalti payment verification failed.");
+        }
+    }
 }
 exports.CheckoutController = CheckoutController;
 exports.default = new CheckoutController();

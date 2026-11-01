@@ -29,6 +29,9 @@ export interface RegisterUserData {
 
 export interface RegisterVendorData extends RegisterUserData {
   businessName?: string;
+  shopName?: string;
+  shopAddress?: string;
+  category?: string;
   vendor?: {
     businessName: string;
     vendorType: string;

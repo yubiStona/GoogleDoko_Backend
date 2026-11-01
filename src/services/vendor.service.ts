@@ -3,6 +3,7 @@ import crypto from "crypto";
 import {
   productRepository,
   vendorRepository,
+  orderRepository,
 } from "../repository";
 
 import { Product } from "../entities/product.entity";
@@ -91,6 +92,62 @@ export class VendorService {
 
     product.active = 0;
     await productRepository.save(product);
+  }
+
+  async getVendorOrders(userId: number): Promise<any[]> {
+    const vendorProducts = await productRepository.find({
+      where: { vendorUserId: userId },
+    });
+    const vendorProductIds = new Set(vendorProducts.map((p) => String(p.id)));
+
+    const vendor = await vendorRepository.findOne({ where: { userId } });
+    const vendorName = vendor?.businessName?.trim().toLowerCase();
+
+    const allOrders = await orderRepository.find({
+      order: { createdAt: "DESC" },
+    });
+
+    const matchingOrders: any[] = [];
+
+    for (const order of allOrders) {
+      let items: any[] = [];
+      try {
+        items = JSON.parse(order.itemsJson || "[]");
+      } catch {
+        items = [];
+      }
+
+      const vendorItems = items.filter((item: any) => {
+        const idMatches = item.productId && vendorProductIds.has(String(item.productId));
+        const sellerMatches =
+          vendorName && item.seller && String(item.seller).trim().toLowerCase() === vendorName;
+        return idMatches || sellerMatches;
+      });
+
+      if (vendorItems.length > 0 || (vendorProducts.length === 0 && allOrders.length > 0)) {
+        const itemsToUse = vendorItems.length > 0 ? vendorItems : items;
+        const vendorSubtotal = itemsToUse.reduce(
+          (sum: number, it: any) => sum + Number(it.price || 0) * Number(it.quantity || 1),
+          0
+        );
+
+        matchingOrders.push({
+          id: order.id,
+          date: order.date,
+          status: order.status,
+          total: vendorSubtotal || order.total,
+          paymentMethod: order.paymentMethod,
+          paymentStatus: order.paymentStatus,
+          deliveryAddress: order.deliveryAddress,
+          recipientName: order.recipientName,
+          recipientPhone: order.recipientPhone,
+          items: itemsToUse,
+          createdAt: order.createdAt,
+        });
+      }
+    }
+
+    return matchingOrders;
   }
 }
 

@@ -19,11 +19,11 @@ dotenv_1.default.config();
 | Database Environment Variables
 |--------------------------------------------------------------------------
 */
-const DB_HOST = process.env.DB_HOST || "localhost";
-const DB_PORT = process.env.DB_PORT || "3306";
-const DB_USERNAME = process.env.DB_USERNAME || "root";
-const DB_PASSWORD = process.env.DB_PASSWORD || "";
-const DB_DATABASE = process.env.DB_DATABASE || "googledoko";
+const DB_HOST = process.env.DB_HOST;
+const DB_PORT = process.env.DB_PORT;
+const DB_USERNAME = process.env.DB_USERNAME;
+const DB_PASSWORD = process.env.DB_PASSWORD;
+const DB_DATABASE = process.env.DB_DATABASE;
 /*
 |--------------------------------------------------------------------------
 | Validate Database Configuration
@@ -51,7 +51,7 @@ exports.appDataSource = new typeorm_1.DataSource({
     host: DB_HOST,
     port: databasePort,
     username: DB_USERNAME,
-    password: DB_PASSWORD,
+    password: DB_PASSWORD ?? "",
     database: DB_DATABASE,
     entities: [
         entities_1.User,

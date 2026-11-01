@@ -5,15 +5,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const admin_controller_1 = __importDefault(require("../controllers/admin.controller"));
+const auth_controller_1 = __importDefault(require("../controllers/auth.controller"));
 const review_controller_1 = __importDefault(require("../controllers/review.controller"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const role_middleware_1 = require("../middleware/role.middleware");
 const validation_middleware_1 = require("../middleware/validation.middleware");
+const auth_validator_1 = require("../validations/auth.validator");
 const coupon_validator_1 = require("../validations/coupon.validator");
 const vendor_validator_1 = require("../validations/vendor.validator");
 const order_validator_1 = require("../validations/order.validator");
 const admin_validator_1 = require("../validations/admin.validator");
 const router = (0, express_1.Router)();
+// Public Admin Login endpoint (returns admin JWT token)
+router.post("/login", auth_validator_1.loginValidator, validation_middleware_1.validateRequest, auth_controller_1.default.login);
 router.use(auth_middleware_1.authenticate, role_middleware_1.adminOnly);
 // Overview & Analytics
 router.get("/overview", admin_controller_1.default.getOverview);

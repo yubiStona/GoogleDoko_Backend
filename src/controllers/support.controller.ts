@@ -6,14 +6,25 @@ import { messages } from "../helpers/message.helper";
 export class SupportController {
   async submitContact(req: Request, res: Response): Promise<void> {
     try {
-      const { fullName, gmail, email, contactNumber, phone, address, inquiry, message } =
-        req.body || {};
+      const {
+        fullName,
+        name,
+        gmail,
+        email,
+        contactNumber,
+        phone,
+        address,
+        subject,
+        inquiry,
+        message,
+      } = req.body || {};
 
       const msg = await supportService.submitInquiry({
-        fullName,
+        fullName: fullName || name || "Customer",
         email: gmail || email,
-        phone: contactNumber || phone,
+        phone: contactNumber || phone || "",
         address,
+        subject: subject || "Customer Inquiry",
         inquiry: inquiry || message || "",
       });
 

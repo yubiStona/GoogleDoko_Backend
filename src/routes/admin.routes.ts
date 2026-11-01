@@ -1,9 +1,11 @@
 import { Router } from "express";
 import adminController from "../controllers/admin.controller";
+import authController from "../controllers/auth.controller";
 import reviewController from "../controllers/review.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { adminOnly } from "../middleware/role.middleware";
 import { validateRequest } from "../middleware/validation.middleware";
+import { loginValidator } from "../validations/auth.validator";
 import { createCouponValidator } from "../validations/coupon.validator";
 import { updateVendorStatusValidator } from "../validations/vendor.validator";
 import { updateOrderStatusValidator } from "../validations/order.validator";
@@ -13,6 +15,9 @@ import {
 } from "../validations/admin.validator";
 
 const router = Router();
+
+// Public Admin Login endpoint (returns admin JWT token)
+router.post("/login", loginValidator, validateRequest, authController.login);
 
 router.use(authenticate, adminOnly);
 

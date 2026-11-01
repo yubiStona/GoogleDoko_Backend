@@ -288,13 +288,25 @@ export class AdminService {
 
   async updateOrderStatus(
     id: string,
-    status: string,
+    rawStatus: string,
     paymentStatus?: string
   ): Promise<Order> {
     const order = await orderRepository.findOne({ where: { id } });
     if (!order) {
       throw new Error("ORDER_NOT_FOUND");
     }
+
+    const lower = String(rawStatus || "").trim().toLowerCase();
+    const map: Record<string, string> = {
+      pending: "Pending",
+      processing: "Processing",
+      shipped: "Shipped",
+      "out for delivery": "Out for Delivery",
+      delivered: "Delivered",
+      cancelled: "Cancelled",
+      canceled: "Cancelled",
+    };
+    const status = map[lower] || rawStatus;
 
     order.status = status;
     if (paymentStatus) {

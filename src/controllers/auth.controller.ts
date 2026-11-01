@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 
+import { revokeToken } from "../utils/jwt";
 import authService from "../services/auth.service";
 import { sendSuccess, sendError } from "../helpers/response.helper";
 import { messages } from "../helpers/message.helper";
@@ -128,10 +129,6 @@ export class AuthController {
       const result = await authService.forgotPassword(req.body?.email);
       sendSuccess(res, 200, messages.auth.passwordResetSent, result);
     } catch (error: any) {
-      if (error?.message === "USER_NOT_FOUND") {
-        sendError(res, 404, messages.auth.userNotFound);
-        return;
-      }
       sendError(res, 500, messages.common.internalServerError);
     }
   }
@@ -216,7 +213,14 @@ export class AuthController {
   | Logout
   |--------------------------------------------------------------------------
   */
-  async logout(_req: Request, res: Response): Promise<void> {
+  async logout(req: Request, res: Response): Promise<void> {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      if (token) {
+        revokeToken(token);
+      }
+    }
     sendSuccess(res, 200, messages.auth.logoutSuccess);
   }
 }

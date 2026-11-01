@@ -214,11 +214,22 @@ class AdminService {
             };
         });
     }
-    async updateOrderStatus(id, status, paymentStatus) {
+    async updateOrderStatus(id, rawStatus, paymentStatus) {
         const order = await repository_1.orderRepository.findOne({ where: { id } });
         if (!order) {
             throw new Error("ORDER_NOT_FOUND");
         }
+        const lower = String(rawStatus || "").trim().toLowerCase();
+        const map = {
+            pending: "Pending",
+            processing: "Processing",
+            shipped: "Shipped",
+            "out for delivery": "Out for Delivery",
+            delivered: "Delivered",
+            cancelled: "Cancelled",
+            canceled: "Cancelled",
+        };
+        const status = map[lower] || rawStatus;
         order.status = status;
         if (paymentStatus) {
             order.paymentStatus = paymentStatus;

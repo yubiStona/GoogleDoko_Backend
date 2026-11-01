@@ -35,7 +35,7 @@ exports.registerValidator = [
 exports.registerVendorValidator = [
     ...exports.registerValidator,
     (0, express_validator_1.body)().custom((b) => {
-        const biz = b.businessName || b.vendor?.businessName;
+        const biz = b.businessName || b.shopName || b.vendor?.businessName || b.vendor?.shopName;
         if (!biz || !String(biz).trim()) {
             throw new Error("Business or Farm name is required for vendor registration.");
         }
@@ -88,16 +88,15 @@ exports.forgotPasswordValidator = [
         .withMessage("Please provide a valid email address."),
 ];
 exports.resetPasswordValidator = [
-    (0, express_validator_1.body)("email")
-        .trim()
-        .notEmpty()
-        .withMessage("Email is required.")
-        .isEmail()
-        .withMessage("Please provide a valid email address."),
     (0, express_validator_1.body)("token")
         .trim()
         .notEmpty()
         .withMessage("Verification token is required."),
+    (0, express_validator_1.body)("email")
+        .optional()
+        .trim()
+        .isEmail()
+        .withMessage("Please provide a valid email address."),
     (0, express_validator_1.body)().custom((b) => {
         const pw = b.newPassword || b.password;
         if (!pw || String(pw).length < 6) {

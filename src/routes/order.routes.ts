@@ -17,6 +17,7 @@ router.post(
 
 router.get("/", orderController.getUserOrders);
 
+router.get("/:id/track", orderController.getTracking);
 router.get("/:id", orderController.getOne);
 
 export default router;

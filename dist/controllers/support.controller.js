@@ -10,12 +10,13 @@ const message_helper_1 = require("../helpers/message.helper");
 class SupportController {
     async submitContact(req, res) {
         try {
-            const { fullName, gmail, email, contactNumber, phone, address, inquiry, message } = req.body || {};
+            const { fullName, name, gmail, email, contactNumber, phone, address, subject, inquiry, message, } = req.body || {};
             const msg = await support_service_1.default.submitInquiry({
-                fullName,
+                fullName: fullName || name || "Customer",
                 email: gmail || email,
-                phone: contactNumber || phone,
+                phone: contactNumber || phone || "",
                 address,
+                subject: subject || "Customer Inquiry",
                 inquiry: inquiry || message || "",
             });
             (0, response_helper_1.sendSuccess)(res, 201, message_helper_1.messages.support.inquirySubmitted, { id: msg.id });

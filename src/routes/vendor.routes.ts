@@ -9,6 +9,7 @@ const router = Router();
 
 router.use(authenticate, vendorOnly);
 
+router.get("/orders", vendorController.getVendorOrders);
 router.get("/products", vendorController.getVendorProducts);
 
 router.post(

@@ -6,6 +6,7 @@ import {
 
 import {
   verifyToken,
+  isTokenRevoked,
 } from "../utils/jwt";
 
 import {
@@ -37,7 +38,7 @@ export const authenticate = (
 
   const token = authorization.split(" ")[1];
 
-  if (!token) {
+  if (!token || isTokenRevoked(token)) {
     sendError(
       res,
       401,

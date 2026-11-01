@@ -13,6 +13,9 @@ import adminRoutes from "./admin.routes";
 import supportRoutes from "./support.routes";
 import uploadRoutes from "./upload.routes";
 import testRoutes from "./test.routes";
+import categoryRoutes from "./category.routes";
+import offerRoutes from "./offer.routes";
+import placeRoutes from "./place.routes";
 
 import productController from "../controllers/product.controller";
 import supportController from "../controllers/support.controller";
@@ -40,6 +43,9 @@ router.use("/admin", adminRoutes);
 router.use("/support", supportRoutes);
 router.use("/upload", uploadRoutes);
 router.use("/test", testRoutes);
+router.use("/categories", categoryRoutes);
+router.use("/offers", offerRoutes);
+router.use("/places", placeRoutes);
 
 // Direct top-level endpoints used by frontend
 router.get("/search", productController.search);

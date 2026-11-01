@@ -51,6 +51,17 @@ export class VendorController {
       sendError(res, 500, messages.common.internalServerError);
     }
   }
+
+  async getVendorOrders(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.id;
+      const orders = await vendorService.getVendorOrders(userId);
+      sendSuccess(res, 200, "Vendor orders retrieved successfully", orders);
+    } catch (error) {
+      console.error("Get vendor orders error:", error);
+      sendError(res, 500, messages.common.internalServerError);
+    }
+  }
 }
 
 export default new VendorController();

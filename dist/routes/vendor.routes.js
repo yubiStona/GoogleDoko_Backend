@@ -11,6 +11,7 @@ const validation_middleware_1 = require("../middleware/validation.middleware");
 const vendor_validator_1 = require("../validations/vendor.validator");
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.authenticate, role_middleware_1.vendorOnly);
+router.get("/orders", vendor_controller_1.default.getVendorOrders);
 router.get("/products", vendor_controller_1.default.getVendorProducts);
 router.post("/products", vendor_validator_1.vendorProductValidator, validation_middleware_1.validateRequest, vendor_controller_1.default.saveVendorProduct);
 router.put("/products/:id", vendor_validator_1.vendorProductValidator, validation_middleware_1.validateRequest, vendor_controller_1.default.saveVendorProduct);

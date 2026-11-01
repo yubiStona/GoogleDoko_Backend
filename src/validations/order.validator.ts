@@ -25,6 +25,20 @@ export const updateOrderStatusValidator = [
   body("status")
     .notEmpty()
     .withMessage("Status is required.")
+    .customSanitizer((val) => {
+      if (!val) return val;
+      const lower = String(val).trim().toLowerCase();
+      const map: Record<string, string> = {
+        pending: "Pending",
+        processing: "Processing",
+        shipped: "Shipped",
+        "out for delivery": "Out for Delivery",
+        delivered: "Delivered",
+        cancelled: "Cancelled",
+        canceled: "Cancelled",
+      };
+      return map[lower] || val;
+    })
     .isIn([
       "Pending",
       "Processing",

@@ -1,24 +1,34 @@
 import { body } from "express-validator";
 
 export const createAddressValidator = [
-  body("fullName")
-    .trim()
-    .notEmpty()
-    .withMessage("Full name is required."),
-
-  body("phone")
-    .trim()
-    .notEmpty()
-    .withMessage("Phone number is required."),
-
-  body("city")
-    .trim()
-    .notEmpty()
-    .withMessage("City is required."),
+  body().custom((b) => {
+    const name = b.fullName || b.recipientName || b.name;
+    if (!name || !String(name).trim()) {
+      throw new Error("Full name is required.");
+    }
+    const phone = b.phone || b.phoneNumber || b.recipientPhone;
+    if (!phone || !String(phone).trim()) {
+      throw new Error("Phone number is required.");
+    }
+    const city = b.city || b.district || b.location;
+    if (!city || !String(city).trim()) {
+      throw new Error("City is required.");
+    }
+    return true;
+  }),
 ];
 
 export const updateAddressValidator = [
-  body("fullName").optional().trim().notEmpty().withMessage("Full name cannot be empty."),
-  body("phone").optional().trim().notEmpty().withMessage("Phone number cannot be empty."),
-  body("city").optional().trim().notEmpty().withMessage("City cannot be empty."),
+  body().custom((b) => {
+    if (b.fullName !== undefined && !String(b.fullName).trim()) {
+      throw new Error("Full name cannot be empty.");
+    }
+    if (b.recipientName !== undefined && !String(b.recipientName).trim()) {
+      throw new Error("Recipient name cannot be empty.");
+    }
+    if (b.phone !== undefined && !String(b.phone).trim()) {
+      throw new Error("Phone number cannot be empty.");
+    }
+    return true;
+  }),
 ];

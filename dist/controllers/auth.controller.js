@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
+const jwt_1 = require("../utils/jwt");
 const auth_service_1 = __importDefault(require("../services/auth.service"));
 const response_helper_1 = require("../helpers/response.helper");
 const message_helper_1 = require("../helpers/message.helper");
@@ -132,10 +133,6 @@ class AuthController {
             (0, response_helper_1.sendSuccess)(res, 200, message_helper_1.messages.auth.passwordResetSent, result);
         }
         catch (error) {
-            if (error?.message === "USER_NOT_FOUND") {
-                (0, response_helper_1.sendError)(res, 404, message_helper_1.messages.auth.userNotFound);
-                return;
-            }
             (0, response_helper_1.sendError)(res, 500, message_helper_1.messages.common.internalServerError);
         }
     }
@@ -219,7 +216,14 @@ class AuthController {
     | Logout
     |--------------------------------------------------------------------------
     */
-    async logout(_req, res) {
+    async logout(req, res) {
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith("Bearer ")) {
+            const token = authHeader.split(" ")[1];
+            if (token) {
+                (0, jwt_1.revokeToken)(token);
+            }
+        }
         (0, response_helper_1.sendSuccess)(res, 200, message_helper_1.messages.auth.logoutSuccess);
     }
 }

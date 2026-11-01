@@ -24,4 +24,8 @@ router.post(
   checkoutController.validateCoupon
 );
 
+router.post("/verify-esewa", checkoutController.verifyEsewa);
+
+router.post("/verify-khalti", checkoutController.verifyKhalti);
+
 export default router;
