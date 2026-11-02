@@ -2,10 +2,12 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import path from "path";
-
+import dotenv from 'dotenv';
 import routes from "./routes";
 import { sendSuccess } from "./helpers/response.helper";
 import { errorHandler } from "./middleware/error.middleware";
+
+dotenv.config();
 
 const app = express();
 
@@ -15,25 +17,13 @@ app.use(
   })
 );
 
-const defaultAllowedOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:4000",
-  "http://127.0.0.1:4000",
-  "http://localhost:3000",
-];
 
-const envOrigins = (
-  process.env.ALLOWED_ORIGINS ||
-  process.env.FRONTEND_URL ||
-  process.env.APP_URL ||
-  ""
-)
+const envOrigins = process.env.ALLOWED_ORIGINS
   .split(",")
   .map((o) => o.trim())
   .filter(Boolean);
 
-const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...envOrigins]));
+const allowedOrigins = Array.from(new Set([...envOrigins]));
 
 app.use(
   cors({
