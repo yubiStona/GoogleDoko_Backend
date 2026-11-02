@@ -294,14 +294,7 @@ export class AuthService {
       throw new Error("FORBIDDEN");
     }
 
-    let passwordMatches = await bcrypt.compare(data.password, user.password);
-
-    // Support both the default admin password (Admin@12345) and standard test password (Password123!)
-    if (!passwordMatches && user.role === UserRole.ADMIN) {
-      if (data.password === "Password123!" || data.password === "Admin@12345") {
-        passwordMatches = true;
-      }
-    }
+    const passwordMatches = await bcrypt.compare(data.password, user.password);
 
     if (!passwordMatches) {
       throw new Error("INVALID_CREDENTIALS");
