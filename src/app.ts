@@ -18,12 +18,20 @@ app.use(
 );
 
 
-const envOrigins = process.env.ALLOWED_ORIGINS
+const defaultAllowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:4000",
+  "http://127.0.0.1:4000",
+  "http://localhost:3000",
+];
+
+const envOrigins = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
   .map((o) => o.trim())
   .filter(Boolean);
 
-const allowedOrigins = Array.from(new Set([...envOrigins]));
+const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...envOrigins]));
 
 app.use(
   cors({
