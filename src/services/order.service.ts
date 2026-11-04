@@ -14,7 +14,7 @@ import { Order } from "../entities/order.entity";
 import { Product } from "../entities/product.entity";
 import { User } from "../entities/user.entity";
 import { Cart } from "../entities/cart.entity";
-import { Coupon } from "../entities/coupon.entity";
+import { Coupon, CouponRedemption } from "../entities/coupon.entity";
 import { RewardLog } from "../entities/reward-log.entity";
 import { appDataSource } from "../config/database";
 
@@ -81,15 +81,24 @@ export class OrderService {
       throw new Error("ORDER_ALREADY_EXISTS");
     }
 
-    // Aggregate quantities
-    const quantities = new Map<string, number>();
+    // Normalize and validate input items
+    const normalizedItems: Array<{
+      productId: string;
+      quantity: number;
+      variant?: any;
+    }> = [];
+
     for (const item of body.items) {
-      const pid = String(item.productId || item.id || "");
+      const pid = String(item.productId || (item as any).id || "");
       const q = Number(item.quantity);
-      if (!Number.isInteger(q) || q < 1) {
+      if (!pid || isNaN(q) || q <= 0) {
         throw new Error("VALIDATION_FAILED");
       }
-      quantities.set(pid, (quantities.get(pid) || 0) + q);
+      normalizedItems.push({
+        productId: pid,
+        quantity: q,
+        variant: (item as any).variant || null,
+      });
     }
 
     const savedOrder = await appDataSource.transaction(async (transactionManager) => {
@@ -99,17 +108,55 @@ export class OrderService {
       const txCouponRepo = transactionManager.getRepository(Coupon);
       const txUserRepo = transactionManager.getRepository(User);
       const txRewardRepo = transactionManager.getRepository(RewardLog);
+      const txRedemptionRepo = transactionManager.getRepository(CouponRedemption);
 
       const items: any[] = [];
 
-      for (const [productId, quantity] of quantities) {
+      for (const reqItem of normalizedItems) {
+        const { productId, quantity, variant: chosenVariant } = reqItem;
         const product = await txProductRepo
           .createQueryBuilder("product")
           .setLock("pessimistic_write")
           .where("product.id = :id AND product.active = 1", { id: productId })
           .getOne();
 
-        if (!product || product.stock < quantity) {
+        if (!product) {
+          throw new Error("PRODUCT_NOT_FOUND");
+        }
+
+        // Validate whole-number restriction for discrete items
+        if (product.allowDecimals !== 1 && !Number.isInteger(quantity)) {
+          throw new Error("VALIDATION_FAILED");
+        }
+
+        let effectivePrice = product.price;
+
+        // If a variant is selected, deduct from variant stock
+        if (chosenVariant && product.variantsJson) {
+          try {
+            const variants = JSON.parse(product.variantsJson);
+            const foundIdx = variants.findIndex(
+              (v: any) => v.id === chosenVariant.id || v.name === chosenVariant.name
+            );
+            if (foundIdx >= 0) {
+              const v = variants[foundIdx];
+              if (v.stock !== undefined) {
+                if (v.stock < quantity) {
+                  throw new Error("INSUFFICIENT_STOCK");
+                }
+                v.stock -= quantity;
+              }
+              if (v.price !== undefined) {
+                effectivePrice = v.price;
+              }
+              product.variantsJson = JSON.stringify(variants);
+            }
+          } catch (e: any) {
+            if (e?.message === "INSUFFICIENT_STOCK") throw e;
+          }
+        }
+
+        if (product.stock < quantity) {
           throw new Error("INSUFFICIENT_STOCK");
         }
 
@@ -119,11 +166,15 @@ export class OrderService {
         items.push({
           productId,
           name: product.name,
-          price: product.price,
+          price: effectivePrice,
           image: product.image,
           weight: product.weight,
+          sellingUnit: product.sellingUnit || "piece",
+          variant: chosenVariant || null,
           quantity,
           vendorId: product.vendorUserId,
+          seller: product.seller || "GoogleDoko Store",
+          status: "Pending",
         });
       }
 
@@ -142,6 +193,8 @@ export class OrderService {
       const deliveryFee = subtotal >= freeThreshold ? 0 : baseDeliveryFee;
 
       let discount = 0;
+      let appliedCouponCode: string | null = null;
+
       if (body.couponCode) {
         const cleanCode = body.couponCode.trim().toUpperCase();
         const coupon = await txCouponRepo.findOne({
@@ -149,22 +202,76 @@ export class OrderService {
         });
 
         if (coupon) {
-          const notExpired =
-            !coupon.expiryDate || new Date(coupon.expiryDate).getTime() >= Date.now();
+          const now = Date.now();
+          const notStarted = coupon.startDate && new Date(coupon.startDate).getTime() > now;
+          const notExpired = !coupon.expiryDate || new Date(coupon.expiryDate).getTime() >= now;
           const hasUses = coupon.timesUsed < coupon.maxUses;
           const meetsMin = subtotal >= coupon.minOrder;
 
-          if (notExpired && hasUses && meetsMin) {
+          // Check per customer limit
+          let exceedsCustomerLimit = false;
+          if (coupon.perCustomerLimit) {
+            const customerUses = await txRedemptionRepo.count({
+              where: { couponCode: cleanCode, userId },
+            });
+            if (customerUses >= coupon.perCustomerLimit) {
+              exceedsCustomerLimit = true;
+            }
+          }
+
+          // Check first order only
+          let failsFirstOrder = false;
+          if (coupon.firstOrderOnly) {
+            const previousOrders = await txOrderRepo.count({ where: { userId } });
+            if (previousOrders > 0) {
+              failsFirstOrder = true;
+            }
+          }
+
+          if (!notStarted && notExpired && hasUses && meetsMin && !exceedsCustomerLimit && !failsFirstOrder) {
             discount =
               coupon.discountType === "percentage"
                 ? Math.round((subtotal * coupon.discountValue) / 100)
                 : Math.min(subtotal, coupon.discountValue);
 
+            if (coupon.maxDiscount && discount > coupon.maxDiscount) {
+              discount = coupon.maxDiscount;
+            }
+
             coupon.timesUsed += 1;
             await txCouponRepo.save(coupon);
+            appliedCouponCode = cleanCode;
+
+            // Save redemption log
+            const redemption = txRedemptionRepo.create({
+              couponCode: cleanCode,
+              userId,
+              orderId,
+              discountAmount: discount,
+            });
+            await txRedemptionRepo.save(redemption);
           }
         }
       }
+
+      // Proportional multi-vendor discount allocation across items
+      let remainingDiscount = discount;
+      items.forEach((item, idx) => {
+        item.orderItemId = `${orderId}-${item.productId}`;
+        const lineTotal = item.price * item.quantity;
+        if (subtotal > 0 && discount > 0) {
+          if (idx === items.length - 1) {
+            item.allocatedDiscount = remainingDiscount;
+          } else {
+            const allocated = Math.round((lineTotal / subtotal) * discount);
+            item.allocatedDiscount = Math.min(allocated, remainingDiscount);
+            remainingDiscount -= item.allocatedDiscount;
+          }
+        } else {
+          item.allocatedDiscount = 0;
+        }
+        item.netAmount = Math.max(0, lineTotal - item.allocatedDiscount);
+      });
 
       const total = Math.max(0, subtotal + deliveryFee - discount);
 

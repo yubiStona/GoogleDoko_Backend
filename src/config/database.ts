@@ -13,12 +13,16 @@ import {
   Cart,
   Wishlist,
   Review,
+  ReviewHelpfulVote,
   Coupon,
+  CouponRedemption,
   SupportMessage,
   Subscriber,
   PlatformSetting,
   RewardLog,
   PasswordReset,
+  LifestyleCollection,
+  ProductLifestyle,
 } from "../entities";
 
 /*
@@ -91,12 +95,16 @@ export const appDataSource = new DataSource({
     Cart,
     Wishlist,
     Review,
+    ReviewHelpfulVote,
     Coupon,
+    CouponRedemption,
     SupportMessage,
     Subscriber,
     PlatformSetting,
     RewardLog,
     PasswordReset,
+    LifestyleCollection,
+    ProductLifestyle,
   ],
 
   /*

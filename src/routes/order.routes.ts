@@ -1,5 +1,6 @@
 import { Router } from "express";
 import orderController from "../controllers/order.controller";
+import reviewController from "../controllers/review.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { validateRequest } from "../middleware/validation.middleware";
 import { createOrderValidator } from "../validations/order.validator";
@@ -17,6 +18,7 @@ router.post(
 
 router.get("/", orderController.getUserOrders);
 
+router.get("/:orderId/review-eligibility", reviewController.getOrderReviewEligibility);
 router.get("/:id/track", orderController.getTracking);
 router.get("/:id", orderController.getOne);
 

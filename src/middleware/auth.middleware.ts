@@ -82,11 +82,14 @@ export const optionalAuthenticate = (
     const token = authorization.split(" ")[1];
     if (token) {
       try {
-        const payload = verifyToken(token);
-        req.user = {
-          id: payload.userId,
-          role: payload.role,
-        };
+        const payload = verifyToken(token) as any;
+        const userId = payload.userId || payload.id;
+        if (userId) {
+          req.user = {
+            id: Number(userId),
+            role: payload.role,
+          };
+        }
       } catch {
         // Ignore token errors for optional authentication
       }

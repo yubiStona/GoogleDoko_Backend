@@ -40,6 +40,28 @@ export class Product {
   weight!: string;
 
   @Column({
+    name: "selling_unit",
+    type: "varchar",
+    length: 50,
+    default: "piece",
+  })
+  sellingUnit!: string;
+
+  @Column({
+    name: "allow_decimals",
+    type: "int",
+    default: 0,
+  })
+  allowDecimals!: number;
+
+  @Column({
+    name: "variants_json",
+    type: "text",
+    nullable: true,
+  })
+  variantsJson!: string | null;
+
+  @Column({
     type: "double",
   })
   price!: number;

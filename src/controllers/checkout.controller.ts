@@ -17,7 +17,8 @@ export class CheckoutController {
   async validateCoupon(req: Request, res: Response): Promise<void> {
     try {
       const { code, subtotal = 0 } = req.body || {};
-      const result = await checkoutService.validateCoupon(code, subtotal);
+      const userId = req.user?.id;
+      const result = await checkoutService.validateCoupon(code, subtotal, userId);
       if (!result.valid) {
         sendError(res, 400, result.error || messages.checkout.couponInvalid, { valid: false });
         return;
@@ -32,7 +33,8 @@ export class CheckoutController {
   async calculateCheckout(req: Request, res: Response): Promise<void> {
     try {
       const { items = [], couponCode } = req.body || {};
-      const summary = await checkoutService.calculateCheckout(items, couponCode);
+      const userId = req.user?.id;
+      const summary = await checkoutService.calculateCheckout(items, couponCode, userId);
       sendSuccess(res, 200, messages.checkout.calculated, summary);
     } catch (error) {
       console.error("Calculate checkout error:", error);

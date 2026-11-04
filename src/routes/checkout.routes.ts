@@ -1,6 +1,7 @@
 import { Router } from "express";
 import checkoutController from "../controllers/checkout.controller";
 import { validateRequest } from "../middleware/validation.middleware";
+import { optionalAuthenticate } from "../middleware/auth.middleware";
 import {
   calculateCheckoutValidator,
   validateCouponValidator,
@@ -12,6 +13,7 @@ router.get("/settings", checkoutController.getSettings);
 
 router.post(
   "/calculate",
+  optionalAuthenticate,
   calculateCheckoutValidator,
   validateRequest,
   checkoutController.calculateCheckout
@@ -19,6 +21,7 @@ router.post(
 
 router.post(
   "/coupons/validate",
+  optionalAuthenticate,
   validateCouponValidator,
   validateRequest,
   checkoutController.validateCoupon

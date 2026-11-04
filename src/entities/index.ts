@@ -12,3 +12,5 @@ export * from "./support.entity";
 export * from "./setting.entity";
 export * from "./reward-log.entity";
 export * from "./password-reset.entity";
+export * from "./lifestyle-collection.entity";
+export * from "./product-lifestyle.entity";

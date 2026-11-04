@@ -1,7 +1,7 @@
 import { Router } from "express";
 import productController from "../controllers/product.controller";
 import reviewController from "../controllers/review.controller";
-import { authenticate } from "../middleware/auth.middleware";
+import { authenticate, optionalAuthenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/role.middleware";
 import { UserRole } from "../entities/user.entity";
 import { validateRequest } from "../middleware/validation.middleware";
@@ -18,7 +18,7 @@ router.get("/featured", productController.getFeatured);
 router.get("/latest", productController.getLatest);
 router.get("/search", productController.search);
 router.get("/:id", productController.getOne);
-router.get("/:id/reviews", reviewController.getProductReviews);
+router.get("/:id/reviews", optionalAuthenticate, reviewController.getProductReviews);
 
 router.post(
   "/",

@@ -516,7 +516,7 @@ export class AuthService {
     if (data.lastName) user.lastName = data.lastName;
     if (data.phone !== undefined) user.phone = data.phone;
     if (data.location !== undefined) user.location = data.location;
-    if (data.photo !== undefined) user.photo = data.photo;
+    if (data.photo !== undefined) user.photo = data.photo || "";
 
     const saved = await userRepository.save(user);
 
@@ -524,7 +524,7 @@ export class AuthService {
     const vendorUpdate = data.vendor || {};
     const businessName = vendorUpdate.businessName || data.businessName;
 
-    if (vendor && (businessName || vendorUpdate.description !== undefined || vendorUpdate.vendorType || vendorUpdate.photo)) {
+    if (vendor && (businessName || vendorUpdate.description !== undefined || vendorUpdate.vendorType || vendorUpdate.photo !== undefined || vendorUpdate.banner !== undefined)) {
       if (businessName) vendor.businessName = businessName;
       if (vendorUpdate.description !== undefined) vendor.description = vendorUpdate.description;
       if (vendorUpdate.vendorType) vendor.vendorType = vendorUpdate.vendorType;
@@ -532,7 +532,13 @@ export class AuthService {
       if (vendorUpdate.location) vendor.location = vendorUpdate.location;
       if (vendorUpdate.district) vendor.district = vendorUpdate.district;
       if (vendorUpdate.address) vendor.address = vendorUpdate.address;
-      if (vendorUpdate.photo) vendor.photo = vendorUpdate.photo;
+      if (vendorUpdate.photo !== undefined) {
+        vendor.photo = vendorUpdate.photo || null as any;
+        vendor.storeLogo = vendorUpdate.photo || null as any;
+      }
+      if (vendorUpdate.banner !== undefined) {
+        vendor.storeBanner = vendorUpdate.banner || null as any;
+      }
       await vendorRepository.save(vendor);
     }
 
@@ -632,7 +638,8 @@ export class AuthService {
               category: vendor.category,
               mainProducts: vendor.mainProducts,
               description: vendor.description,
-              photo: vendor.photo,
+              photo: vendor.storeLogo || vendor.photo || "",
+              banner: vendor.storeBanner || "",
               documentName: vendor.documentName,
               status: vendor.status,
             },
