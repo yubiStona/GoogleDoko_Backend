@@ -16,6 +16,7 @@ import testRoutes from "./test.routes";
 import categoryRoutes from "./category.routes";
 import offerRoutes from "./offer.routes";
 import placeRoutes from "./place.routes";
+import lifestyleRoutes from "./lifestyle.routes";
 
 import productController from "../controllers/product.controller";
 import supportController from "../controllers/support.controller";
@@ -46,6 +47,7 @@ router.use("/test", testRoutes);
 router.use("/categories", categoryRoutes);
 router.use("/offers", offerRoutes);
 router.use("/places", placeRoutes);
+router.use("/lifestyles", lifestyleRoutes);
 
 // Direct top-level endpoints used by frontend
 router.get("/search", productController.search);

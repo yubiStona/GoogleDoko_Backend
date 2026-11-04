@@ -1,5 +1,11 @@
 import { productRepository } from "../repository";
 import { Product } from "../entities/product.entity";
+import lifestyleService from "./lifestyle.service";
+import {
+  resolveSellingUnit,
+  isUnitAllowedForCategory,
+  isDecimalAllowedForUnit,
+} from "../helpers/sellingUnit.helper";
 
 export interface ProductFilters {
   category?: string;
@@ -82,7 +88,7 @@ export class ProductService {
     });
   }
 
-  async getProductById(id: string): Promise<Product | null> {
+  async getProductById(id: string): Promise<any> {
     const product = await productRepository.findOne({
       where: { id },
     });
@@ -91,7 +97,23 @@ export class ProductService {
       throw new Error("PRODUCT_NOT_FOUND");
     }
 
-    return product;
+    const lifestyles = await lifestyleService.getProductLifestyles(id);
+
+    let parsedVariants: any[] = [];
+    if (product.variantsJson) {
+      try {
+        parsedVariants = JSON.parse(product.variantsJson);
+      } catch (_) {
+        parsedVariants = [];
+      }
+    }
+
+    return {
+      ...product,
+      variants: parsedVariants,
+      lifestyleIds: lifestyles.map((l) => l.lifestyleId),
+      lifestyles,
+    };
   }
 
   async searchProducts(query: string, category?: string): Promise<Product[]> {
@@ -101,13 +123,31 @@ export class ProductService {
     });
   }
 
-  async createProduct(data: Partial<Product>, userId?: number, role?: string): Promise<Product> {
+  async createProduct(data: any, userId?: number, role?: string): Promise<Product> {
     const id = data.id || `PROD-${Date.now()}`;
-    const product = productRepository.create({
+    const product = new Product();
+
+    const category = data.category || "Others";
+    const requestedUnit = data.sellingUnit || data.unit;
+    const unitResolution = resolveSellingUnit(category, requestedUnit, data.weight);
+
+    let variantsJsonStr: string | null = null;
+    if (data.variants && Array.isArray(data.variants)) {
+      variantsJsonStr = JSON.stringify(data.variants);
+    } else if (typeof data.variantsJson === "string") {
+      variantsJsonStr = data.variantsJson;
+    }
+
+    Object.assign(product, {
       ...data,
       id,
+      category,
+      weight: data.weight || "1 unit",
+      sellingUnit: unitResolution.sellingUnit,
+      allowDecimals: data.allowDecimals !== undefined ? Number(data.allowDecimals) : unitResolution.allowDecimals,
+      variantsJson: variantsJsonStr,
       vendorUserId: role === "vendor" ? userId : (data.vendorUserId ?? null),
-      stock: data.stock ?? 100,
+      stock: data.stock !== undefined ? Number(data.stock) : 100,
       active: data.active ?? 1,
       rating: data.rating ?? 4.8,
       sold: data.sold ?? "0",
@@ -115,10 +155,24 @@ export class ProductService {
       seller: data.seller || "GoogleDoko Store",
     });
 
-    return await productRepository.save(product);
+    const saved = await productRepository.save(product);
+
+    if (data.lifestyles !== undefined || data.lifestyleIds !== undefined) {
+      const assignments =
+        data.lifestyles ||
+        (Array.isArray(data.lifestyleIds)
+          ? data.lifestyleIds.map((lid: string) => ({
+              lifestyleId: lid,
+              subcategory: data.lifestyleSubcategory || null,
+            }))
+          : []);
+      await lifestyleService.assignProductLifestyles(id, assignments);
+    }
+
+    return saved;
   }
 
-  async updateProduct(id: string, data: Partial<Product>, userId?: number, role?: string): Promise<Product> {
+  async updateProduct(id: string, data: any, userId?: number, role?: string): Promise<Product> {
     const product = await productRepository.findOne({
       where: { id },
     });
@@ -131,8 +185,54 @@ export class ProductService {
       throw new Error("FORBIDDEN");
     }
 
-    Object.assign(product, data);
-    return await productRepository.save(product);
+    const category = data.category !== undefined ? data.category : product.category;
+    let sellingUnit = product.sellingUnit;
+    let allowDecimals = product.allowDecimals;
+
+    if (data.sellingUnit !== undefined || data.unit !== undefined) {
+      const unitRes = resolveSellingUnit(category, data.sellingUnit || data.unit, data.weight || product.weight);
+      sellingUnit = unitRes.sellingUnit;
+      allowDecimals = data.allowDecimals !== undefined ? Number(data.allowDecimals) : unitRes.allowDecimals;
+    } else if (data.category !== undefined && data.category !== product.category) {
+      const unitRes = resolveSellingUnit(category, product.sellingUnit, data.weight || product.weight);
+      sellingUnit = unitRes.sellingUnit;
+      allowDecimals = unitRes.allowDecimals;
+    }
+
+    if (data.allowDecimals !== undefined) {
+      allowDecimals = Number(data.allowDecimals);
+    }
+
+    let variantsJsonStr = product.variantsJson;
+    if (data.variants !== undefined) {
+      variantsJsonStr = Array.isArray(data.variants) ? JSON.stringify(data.variants) : null;
+    } else if (data.variantsJson !== undefined) {
+      variantsJsonStr = data.variantsJson;
+    }
+
+    Object.assign(product, {
+      ...data,
+      category,
+      sellingUnit,
+      allowDecimals,
+      variantsJson: variantsJsonStr,
+    });
+
+    const saved: Product = await productRepository.save(product);
+
+    if (data.lifestyles !== undefined || data.lifestyleIds !== undefined) {
+      const assignments =
+        data.lifestyles ||
+        (Array.isArray(data.lifestyleIds)
+          ? data.lifestyleIds.map((lid: string) => ({
+              lifestyleId: lid,
+              subcategory: data.lifestyleSubcategory || null,
+            }))
+          : []);
+      await lifestyleService.assignProductLifestyles(id, assignments);
+    }
+
+    return saved;
   }
 
   async deleteProduct(id: string, userId?: number, role?: string): Promise<void> {

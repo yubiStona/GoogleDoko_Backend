@@ -87,6 +87,53 @@ export class Vendor {
   photo?: string;
 
   @Column({
+    name: "store_logo",
+    type: "varchar",
+    length: 500,
+    nullable: true,
+  })
+  storeLogo?: string;
+
+  @Column({
+    name: "store_banner",
+    type: "varchar",
+    length: 500,
+    nullable: true,
+  })
+  storeBanner?: string;
+
+  @Column({
+    name: "store_email",
+    type: "varchar",
+    length: 255,
+    nullable: true,
+  })
+  storeEmail?: string;
+
+  @Column({
+    name: "store_phone",
+    type: "varchar",
+    length: 50,
+    nullable: true,
+  })
+  storePhone?: string;
+
+  @Column({
+    name: "store_hours",
+    type: "varchar",
+    length: 255,
+    nullable: true,
+  })
+  storeHours?: string;
+
+  @Column({
+    name: "store_socials",
+    type: "text",
+    nullable: true,
+  })
+  storeSocials?: string;
+
+  @Column({
     name: "document_name",
     type: "varchar",
     length: 255,

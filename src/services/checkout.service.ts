@@ -1,6 +1,7 @@
 import {
   settingRepository,
   couponRepository,
+  couponRedemptionRepository,
   productRepository,
   orderRepository,
 } from "../repository";
@@ -33,7 +34,7 @@ export class CheckoutService {
     };
   }
 
-  async validateCoupon(code: string, subtotal: number = 0) {
+  async validateCoupon(code: string, subtotal: number = 0, userId?: number) {
     if (!code) {
       return { valid: false, error: "Please enter a promo code." };
     }
@@ -62,29 +63,73 @@ export class CheckoutService {
     }
 
     if (!coupon) {
-      return { valid: false, error: `Invalid coupon code "${cleanCode}".` };
+      return { valid: false, error: `Invalid promo code "${cleanCode}".` };
+    }
+
+    // Date range validation
+    if (coupon.startDate && new Date(coupon.startDate).getTime() > Date.now()) {
+      return { valid: false, error: `Promo code "${cleanCode}" is not active yet.` };
     }
 
     if (coupon.expiryDate && new Date(coupon.expiryDate).getTime() < Date.now()) {
-      return { valid: false, error: `Coupon "${cleanCode}" has expired.` };
+      return { valid: false, error: `Promo code "${cleanCode}" has expired.` };
     }
 
     if (coupon.timesUsed >= coupon.maxUses) {
-      return { valid: false, error: `Coupon "${cleanCode}" usage limit reached.` };
+      return { valid: false, error: `Promo code "${cleanCode}" usage limit has been reached.` };
+    }
+
+    // Per-customer usage limit
+    if (userId && coupon.perCustomerLimit) {
+      try {
+        const redemptions = await couponRedemptionRepository.count({
+          where: { couponCode: cleanCode, userId },
+        });
+        if (redemptions >= coupon.perCustomerLimit) {
+          return {
+            valid: false,
+            error: `You have already used promo code "${cleanCode}" the maximum allowed times.`,
+          };
+        }
+      } catch {
+        // Continue if table query fails
+      }
+    }
+
+    // First order only
+    if (userId && coupon.firstOrderOnly) {
+      try {
+        const previousOrders = await orderRepository.count({
+          where: { userId },
+        });
+        if (previousOrders > 0) {
+          return {
+            valid: false,
+            error: `Promo code "${cleanCode}" is valid for first-time orders only.`,
+          };
+        }
+      } catch {
+        // Continue
+      }
     }
 
     const sub = Number(subtotal) || 0;
     if (sub < coupon.minOrder) {
+      const remaining = Math.max(0, coupon.minOrder - sub);
       return {
         valid: false,
-        error: `Coupon "${cleanCode}" requires a minimum order of Rs. ${coupon.minOrder}.`,
+        error: `Add Rs. ${remaining.toLocaleString()} more to your order to use promo code "${cleanCode}". (Minimum order: Rs. ${coupon.minOrder.toLocaleString()})`,
       };
     }
 
-    const discountAmount =
+    let discountAmount =
       coupon.discountType === "percentage"
         ? Math.round((sub * coupon.discountValue) / 100)
         : Math.min(sub, coupon.discountValue);
+
+    if (coupon.maxDiscount && discountAmount > coupon.maxDiscount) {
+      discountAmount = coupon.maxDiscount;
+    }
 
     return {
       valid: true,
@@ -92,16 +137,17 @@ export class CheckoutService {
       discountType: coupon.discountType,
       discountValue: coupon.discountValue,
       discountAmount,
+      maxDiscount: coupon.maxDiscount,
       minOrder: coupon.minOrder,
       message: `Promo code "${coupon.code}" applied! ${
         coupon.discountType === "percentage"
-          ? `${coupon.discountValue}% off`
-          : `Rs. ${coupon.discountValue} off`
-      }`,
+          ? `${coupon.discountValue}% discount`
+          : `Rs. ${coupon.discountValue} discount`
+      }${coupon.maxDiscount ? ` (up to Rs. ${coupon.maxDiscount})` : ""}`,
     };
   }
 
-  async calculateCheckout(items: any[] = [], couponCode?: string) {
+  async calculateCheckout(items: any[] = [], couponCode?: string, userId?: number) {
     if (!Array.isArray(items) || items.length === 0) {
       return {
         valid: false,
@@ -121,7 +167,8 @@ export class CheckoutService {
 
     for (const item of items) {
       const pid = String(item.productId || item.id || "");
-      const qty = Math.max(1, Number(item.quantity) || 1);
+      const rawQty = Number(item.quantity);
+      let qty = isNaN(rawQty) || rawQty <= 0 ? 1 : rawQty;
       const product = await productRepository.findOne({
         where: { id: pid },
       });
@@ -134,39 +181,72 @@ export class CheckoutService {
           price: product?.price || 0,
           quantity: qty,
           weight: product?.weight || "",
+          sellingUnit: "piece",
           image: product?.image || "",
           available: false,
           stock: 0,
+          lineTotal: 0,
+          allocatedDiscount: 0,
+          netLineTotal: 0,
           error: "Product is no longer available",
         });
         continue;
       }
 
-      const availableStock = product.stock;
+      // Check decimal precision validation
+      let qtyError: string | undefined = undefined;
+      const allowsDecimals = product.allowDecimals === 1;
+      if (!allowsDecimals && !Number.isInteger(qty)) {
+        hasStockError = true;
+        qtyError = `Fractional quantities not permitted for ${product.name} (sold per ${product.sellingUnit || "piece"})`;
+        qty = Math.round(qty);
+      }
+
+      // Check variant stock if variant is chosen
+      let availableStock = product.stock;
+      let effectivePrice = product.price;
+      const chosenVariant = item.variant;
+
+      if (chosenVariant && product.variantsJson) {
+        try {
+          const variants = JSON.parse(product.variantsJson);
+          const found = variants.find(
+            (v: any) => v.id === chosenVariant.id || v.name === chosenVariant.name
+          );
+          if (found) {
+            if (found.stock !== undefined) availableStock = found.stock;
+            if (found.price !== undefined) effectivePrice = found.price;
+          }
+        } catch (_) {}
+      }
+
       const actualQty = Math.min(qty, availableStock);
       if (qty > availableStock) {
         hasStockError = true;
+        qtyError = qtyError || `Only ${availableStock} ${product.sellingUnit || "units"} available in stock`;
       }
 
-      const lineTotal = product.price * actualQty;
+      const lineTotal = effectivePrice * actualQty;
       subtotal += lineTotal;
 
       validatedItems.push({
         productId: product.id,
         name: product.name,
-        price: product.price,
+        price: effectivePrice,
         quantity: actualQty,
         requestedQuantity: qty,
         weight: product.weight,
+        sellingUnit: product.sellingUnit || "piece",
+        allowDecimals: product.allowDecimals ?? 0,
+        variant: chosenVariant || null,
         image: product.image,
         seller: product.seller,
         stock: availableStock,
         available: availableStock > 0,
         lineTotal,
-        error:
-          qty > availableStock
-            ? `Only ${availableStock} units available in stock`
-            : undefined,
+        allocatedDiscount: 0,
+        netLineTotal: lineTotal,
+        error: qtyError,
       });
     }
 
@@ -180,10 +260,25 @@ export class CheckoutService {
     let couponResult: any = null;
 
     if (couponCode) {
-      couponResult = await this.validateCoupon(couponCode, subtotal);
+      couponResult = await this.validateCoupon(couponCode, subtotal, userId);
       if (couponResult.valid) {
         discount = couponResult.discountAmount;
       }
+    }
+
+    // Multi-vendor proportional discount allocation
+    if (subtotal > 0 && discount > 0) {
+      let remainingDiscount = discount;
+      validatedItems.forEach((it, idx) => {
+        if (idx === validatedItems.length - 1) {
+          it.allocatedDiscount = remainingDiscount;
+        } else {
+          const allocated = Math.round((it.lineTotal / subtotal) * discount);
+          it.allocatedDiscount = Math.min(allocated, remainingDiscount);
+          remainingDiscount -= it.allocatedDiscount;
+        }
+        it.netLineTotal = Math.max(0, it.lineTotal - it.allocatedDiscount);
+      });
     }
 
     const total = Math.max(0, subtotal + deliveryFee - discount);
