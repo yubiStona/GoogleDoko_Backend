@@ -46,6 +46,61 @@ export const VERIFIED_PLACE_DESCRIPTIONS: Record<string, string> = {
     sunsari: 'Eastern river valley plains yielding sweet bananas, fresh jute greens, sugarcane jaggery, and aromatic pulses.'
 };
 
+export const LIFESTYLE_CATEGORIES = [
+    'furniture',
+    'home & living',
+    'home-living',
+    'kitchen & dining',
+    'kitchen-dining',
+    'garden & outdoor',
+    'garden-outdoor',
+    'beauty & personal care',
+    'beauty-personal-care',
+    'beauty & skincare',
+    'fashion & accessories',
+    'fashion-accessories',
+    'fashion',
+    'clothing',
+    'bags',
+    'shoes',
+    'home decor',
+    'bedsheets'
+];
+
+export const LIFESTYLE_ID_PREFIXES = [
+    'PROD-FURN-',
+    'PROD-HOME-',
+    'PROD-KITCH-',
+    'PROD-GARD-',
+    'PROD-BEAU-',
+    'PROD-FASH-'
+];
+
+export function isLifestyleCategory(category?: string): boolean {
+    if (!category) return false;
+    const cat = category.trim().toLowerCase();
+    if (LIFESTYLE_CATEGORIES.includes(cat)) return true;
+    return (
+        cat.includes('furniture') ||
+        cat.includes('home & living') ||
+        cat.includes('kitchen & dining') ||
+        cat.includes('garden & outdoor') ||
+        cat.includes('beauty') ||
+        cat.includes('fashion') ||
+        cat.includes('clothing') ||
+        cat.includes('bedsheet')
+    );
+}
+
+export function isLifestyleProduct(p: { id: string; category?: string }): boolean {
+    if (!p) return false;
+    const idUpper = (p.id || '').toUpperCase();
+    for (const prefix of LIFESTYLE_ID_PREFIXES) {
+        if (idUpper.startsWith(prefix)) return true;
+    }
+    return isLifestyleCategory(p.category);
+}
+
 export class PlaceService {
     private static formatSlug(input: string): string {
         return input.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -113,6 +168,9 @@ export class PlaceService {
         }
 
         for (const product of products) {
+            if (isLifestyleProduct(product)) {
+                continue;
+            }
             const originLower = (product.origin || '').toLowerCase();
             for (const key of Object.keys(VERIFIED_PLACE_DESCRIPTIONS)) {
                 if (originLower.includes(key)) {
@@ -170,11 +228,20 @@ export class PlaceService {
         const prettyName = PlaceService.getPrettyName(matchedKey);
         const isKullu = matchedKey === 'kullu';
 
-        const products = await productRepository
+        const productsRaw = await productRepository
             .createQueryBuilder('p')
             .where('p.active = 1')
             .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${matchedKey}%` })
+            .andWhere('LOWER(p.category) NOT IN (:...lifestyleCats)', { lifestyleCats: LIFESTYLE_CATEGORIES })
+            .andWhere("p.id NOT LIKE 'PROD-FURN-%'")
+            .andWhere("p.id NOT LIKE 'PROD-HOME-%'")
+            .andWhere("p.id NOT LIKE 'PROD-KITCH-%'")
+            .andWhere("p.id NOT LIKE 'PROD-GARD-%'")
+            .andWhere("p.id NOT LIKE 'PROD-BEAU-%'")
+            .andWhere("p.id NOT LIKE 'PROD-FASH-%'")
             .getMany();
+
+        const products = productsRaw.filter(p => !isLifestyleProduct(p));
 
         const orders = await orderRepository.find({ select: ['status', 'itemsJson'] });
         const validOrders = orders.filter(
@@ -241,13 +308,20 @@ export class PlaceService {
             .addSelect('COUNT(p.id)', 'count')
             .where('p.active = 1')
             .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${matchedKey}%` })
+            .andWhere('LOWER(p.category) NOT IN (:...lifestyleCats)', { lifestyleCats: LIFESTYLE_CATEGORIES })
+            .andWhere("p.id NOT LIKE 'PROD-FURN-%'")
+            .andWhere("p.id NOT LIKE 'PROD-HOME-%'")
+            .andWhere("p.id NOT LIKE 'PROD-KITCH-%'")
+            .andWhere("p.id NOT LIKE 'PROD-GARD-%'")
+            .andWhere("p.id NOT LIKE 'PROD-BEAU-%'")
+            .andWhere("p.id NOT LIKE 'PROD-FASH-%'")
             .groupBy('TRIM(p.category)')
             .having('COUNT(p.id) > 0')
             .orderBy('count', 'DESC')
             .getRawMany();
 
         return rawResults
-            .filter(r => r.category && r.category.trim() !== '')
+            .filter(r => r.category && r.category.trim() !== '' && !isLifestyleCategory(r.category))
             .map(r => ({
                 id: PlaceService.formatSlug(r.category),
                 name: r.category.trim(),
@@ -277,7 +351,14 @@ export class PlaceService {
         const query = productRepository
             .createQueryBuilder('p')
             .where('p.active = 1')
-            .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${matchedKey}%` });
+            .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${matchedKey}%` })
+            .andWhere('LOWER(p.category) NOT IN (:...lifestyleCats)', { lifestyleCats: LIFESTYLE_CATEGORIES })
+            .andWhere("p.id NOT LIKE 'PROD-FURN-%'")
+            .andWhere("p.id NOT LIKE 'PROD-HOME-%'")
+            .andWhere("p.id NOT LIKE 'PROD-KITCH-%'")
+            .andWhere("p.id NOT LIKE 'PROD-GARD-%'")
+            .andWhere("p.id NOT LIKE 'PROD-BEAU-%'")
+            .andWhere("p.id NOT LIKE 'PROD-FASH-%'");
 
         // Category filter (match name or slug)
         if (filters.category && filters.category.trim() !== '' && filters.category.toLowerCase() !== 'all') {
@@ -330,7 +411,9 @@ export class PlaceService {
         const limit = Math.max(1, Math.min(100, Number(filters.limit) || 12));
         const skip = (page - 1) * limit;
 
-        const [products, total] = await query.skip(skip).take(limit).getManyAndCount();
+        const [productsRaw, totalRaw] = await query.skip(skip).take(limit).getManyAndCount();
+        const products = productsRaw.filter(p => !isLifestyleProduct(p));
+        const total = Math.max(0, totalRaw - (productsRaw.length - products.length));
 
         return {
             products,
@@ -355,11 +438,20 @@ export class PlaceService {
             }
         }
 
-        const products = await productRepository
+        const productsRaw = await productRepository
             .createQueryBuilder('p')
             .where('p.active = 1')
             .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${matchedKey}%` })
+            .andWhere('LOWER(p.category) NOT IN (:...lifestyleCats)', { lifestyleCats: LIFESTYLE_CATEGORIES })
+            .andWhere("p.id NOT LIKE 'PROD-FURN-%'")
+            .andWhere("p.id NOT LIKE 'PROD-HOME-%'")
+            .andWhere("p.id NOT LIKE 'PROD-KITCH-%'")
+            .andWhere("p.id NOT LIKE 'PROD-GARD-%'")
+            .andWhere("p.id NOT LIKE 'PROD-BEAU-%'")
+            .andWhere("p.id NOT LIKE 'PROD-FASH-%'")
             .getMany();
+
+        const products = productsRaw.filter(p => !isLifestyleProduct(p));
 
         if (products.length === 0) {
             return [];

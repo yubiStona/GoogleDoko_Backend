@@ -23,12 +23,14 @@ describe("Explore by Places - Backend Tests", () => {
       const mockProducts = [
         { id: "p1", origin: "Bhaktapur, Nepal", sold: "5", category: "Curd & Dairy", active: 1 },
         { id: "p2", origin: "Bhaktapur, Nepal", sold: "2", category: "Vegetables", active: 1 },
+        { id: "PROD-FURN-01", origin: "Bhaktapur, Nepal", sold: "20", category: "Furniture", active: 1 }, // Lifestyle, should be excluded
         { id: "p3", origin: "Mustang, Nepal", sold: "10", category: "Apples & Fruits", active: 1 },
       ];
 
       const mockOrders = [
         { id: "o1", status: "CONFIRMED", itemsJson: JSON.stringify([{ productId: "p1", quantity: 3 }]) },
         { id: "o2", status: "CANCELLED", itemsJson: JSON.stringify([{ productId: "p1", quantity: 10 }]) }, // Cancelled, should be ignored
+        { id: "o3", status: "CONFIRMED", itemsJson: JSON.stringify([{ productId: "PROD-FURN-01", quantity: 5 }]) }, // Lifestyle order, ignored for food place stats
       ];
 
       vi.spyOn(productRepository, "find").mockResolvedValue(mockProducts as any);
@@ -39,7 +41,7 @@ describe("Explore by Places - Backend Tests", () => {
 
       const bhaktapur = places.find(p => p.id === "bhaktapur");
       expect(bhaktapur).toBeDefined();
-      expect(bhaktapur?.itemCount).toBe(2);
+      expect(bhaktapur?.itemCount).toBe(2); // Only 2 food items, PROD-FURN-01 excluded
       // p1 baseline 5 + order 3 = 8; p2 baseline 2 = 10 total
       expect(bhaktapur?.soldCount).toBe(10);
       expect(bhaktapur?.activeCategoriesCount).toBe(2);
@@ -51,7 +53,7 @@ describe("Explore by Places - Backend Tests", () => {
   });
 
   describe("Dynamic Categories per Place", () => {
-    it("getPlaceCategories aggregates categories strictly for the place", async () => {
+    it("getPlaceCategories aggregates categories strictly for the place and excludes lifestyle", async () => {
       const qb: any = {
         select: vi.fn().mockReturnThis(),
         addSelect: vi.fn().mockReturnThis(),
@@ -63,6 +65,8 @@ describe("Explore by Places - Backend Tests", () => {
         getRawMany: vi.fn().mockResolvedValue([
           { category: "Curd & Dairy", count: "3" },
           { category: "Vegetables", count: "2" },
+          { category: "Furniture", count: "1" },
+          { category: "Kitchen & Dining", count: "1" },
         ]),
       };
 

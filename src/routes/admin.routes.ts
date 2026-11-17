@@ -2,7 +2,6 @@ import { Router } from "express";
 import adminController from "../controllers/admin.controller";
 import authController from "../controllers/auth.controller";
 import reviewController from "../controllers/review.controller";
-import lifestyleController from "../controllers/lifestyle.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { adminOnly } from "../middleware/role.middleware";
 import { validateRequest } from "../middleware/validation.middleware";
@@ -85,12 +84,5 @@ router.patch(
   adminController.updateSupportStatus
 );
 router.get("/subscribers", adminController.getSubscribers);
-
-// Lifestyle Collections
-router.get("/lifestyles", lifestyleController.adminGetAll);
-router.post("/lifestyles", lifestyleController.adminCreate);
-router.put("/lifestyles/:id", lifestyleController.adminUpdate);
-router.patch("/lifestyles/:id/status", lifestyleController.adminToggleStatus);
-router.delete("/lifestyles/:id", lifestyleController.adminDelete);
 
 export default router;

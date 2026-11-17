@@ -15,6 +15,7 @@ export interface ProductFilters {
   sort?: string;
   page?: number;
   limit?: number;
+  excludeLifestyle?: boolean;
 }
 
 export class ProductService {
@@ -22,6 +23,18 @@ export class ProductService {
     const qb = productRepository.createQueryBuilder("product");
 
     qb.where("product.active = 1");
+
+    if (filters?.excludeLifestyle) {
+      qb.andWhere(
+        "LOWER(product.category) NOT IN ('furniture', 'home & living', 'home-living', 'kitchen & dining', 'kitchen-dining', 'garden & outdoor', 'garden-outdoor', 'beauty & personal care', 'beauty-personal-care', 'beauty & skincare', 'fashion & accessories', 'fashion-accessories', 'fashion', 'clothing', 'bags', 'shoes', 'home decor', 'bedsheets')"
+      );
+      qb.andWhere("product.id NOT LIKE 'PROD-FURN-%'");
+      qb.andWhere("product.id NOT LIKE 'PROD-HOME-%'");
+      qb.andWhere("product.id NOT LIKE 'PROD-KITCH-%'");
+      qb.andWhere("product.id NOT LIKE 'PROD-GARD-%'");
+      qb.andWhere("product.id NOT LIKE 'PROD-BEAU-%'");
+      qb.andWhere("product.id NOT LIKE 'PROD-FASH-%'");
+    }
 
     if (filters?.category && filters.category !== "all" && filters.category !== "All") {
       qb.andWhere("LOWER(product.category) = LOWER(:category)", {
@@ -68,23 +81,26 @@ export class ProductService {
     return await qb.getMany();
   }
 
-  async getPopularProducts(limit = 8): Promise<Product[]> {
+  async getPopularProducts(limit = 8, excludeLifestyle = true): Promise<Product[]> {
     return this.getProducts({
       sort: "popular",
       limit,
+      excludeLifestyle,
     });
   }
 
-  async getFeaturedProducts(limit = 8): Promise<Product[]> {
+  async getFeaturedProducts(limit = 8, excludeLifestyle = true): Promise<Product[]> {
     return this.getProducts({
       limit,
+      excludeLifestyle,
     });
   }
 
-  async getLatestProducts(limit = 8): Promise<Product[]> {
+  async getLatestProducts(limit = 8, excludeLifestyle = true): Promise<Product[]> {
     return this.getProducts({
       sort: "latest",
       limit,
+      excludeLifestyle,
     });
   }
 
@@ -108,18 +124,32 @@ export class ProductService {
       }
     }
 
+    let parsedGallery: string[] = [];
+    if (product.galleryJson) {
+      try {
+        parsedGallery = JSON.parse(product.galleryJson);
+      } catch (_) {
+        parsedGallery = [];
+      }
+    }
+    if (parsedGallery.length === 0 && product.image) {
+      parsedGallery = [product.image];
+    }
+
     return {
       ...product,
       variants: parsedVariants,
+      gallery: parsedGallery,
       lifestyleIds: lifestyles.map((l) => l.lifestyleId),
       lifestyles,
     };
   }
 
-  async searchProducts(query: string, category?: string): Promise<Product[]> {
+  async searchProducts(query: string, category?: string, excludeLifestyle = true): Promise<Product[]> {
     return this.getProducts({
       search: query,
       category,
+      excludeLifestyle,
     });
   }
 
@@ -138,6 +168,13 @@ export class ProductService {
       variantsJsonStr = data.variantsJson;
     }
 
+    let galleryJsonStr: string | null = null;
+    if (data.gallery && Array.isArray(data.gallery)) {
+      galleryJsonStr = JSON.stringify(data.gallery);
+    } else if (typeof data.galleryJson === "string") {
+      galleryJsonStr = data.galleryJson;
+    }
+
     Object.assign(product, {
       ...data,
       id,
@@ -146,6 +183,7 @@ export class ProductService {
       sellingUnit: unitResolution.sellingUnit,
       allowDecimals: data.allowDecimals !== undefined ? Number(data.allowDecimals) : unitResolution.allowDecimals,
       variantsJson: variantsJsonStr,
+      galleryJson: galleryJsonStr,
       vendorUserId: role === "vendor" ? userId : (data.vendorUserId ?? null),
       stock: data.stock !== undefined ? Number(data.stock) : 100,
       active: data.active ?? 1,
@@ -210,12 +248,20 @@ export class ProductService {
       variantsJsonStr = data.variantsJson;
     }
 
+    let galleryJsonStr = product.galleryJson;
+    if (data.gallery !== undefined) {
+      galleryJsonStr = Array.isArray(data.gallery) ? JSON.stringify(data.gallery) : null;
+    } else if (data.galleryJson !== undefined) {
+      galleryJsonStr = data.galleryJson;
+    }
+
     Object.assign(product, {
       ...data,
       category,
       sellingUnit,
       allowDecimals,
       variantsJson: variantsJsonStr,
+      galleryJson: galleryJsonStr,
     });
 
     const saved: Product = await productRepository.save(product);

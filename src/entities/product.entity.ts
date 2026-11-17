@@ -62,6 +62,13 @@ export class Product {
   variantsJson!: string | null;
 
   @Column({
+    name: "gallery_json",
+    type: "text",
+    nullable: true,
+  })
+  galleryJson!: string | null;
+
+  @Column({
     type: "double",
   })
   price!: number;

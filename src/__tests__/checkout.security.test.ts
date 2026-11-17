@@ -42,7 +42,7 @@ describe("Checkout & Payment Security", () => {
         orderId: "GD-TEST-1",
         amount: 500, // tampered amount
         refId: "ESEWA-REF-123",
-      })
+      }),
     ).rejects.toThrow("PAYMENT_AMOUNT_MISMATCH");
   });
 
@@ -54,7 +54,7 @@ describe("Checkout & Payment Security", () => {
         orderId: "NON_EXISTENT",
         pidx: "KHALTI_PIDX_123",
         amount: 1000,
-      })
+      }),
     ).rejects.toThrow("ORDER_NOT_FOUND");
   });
 });

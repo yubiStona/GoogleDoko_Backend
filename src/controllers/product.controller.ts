@@ -13,6 +13,9 @@ export class ProductController {
       const sort = req.query.sort as string | undefined;
       const page = req.query.page ? Number(req.query.page) : undefined;
       const limit = req.query.limit ? Number(req.query.limit) : undefined;
+      const excludeLifestyleParam = req.query.excludeLifestyle as string | undefined;
+      const isLifestyleCat = category && ['furniture', 'home & living', 'home-living', 'kitchen & dining', 'kitchen-dining', 'garden & outdoor', 'garden-outdoor', 'beauty & personal care', 'beauty-personal-care', 'fashion & accessories', 'fashion-accessories'].includes(category.toLowerCase());
+      const excludeLifestyle = excludeLifestyleParam !== undefined ? excludeLifestyleParam !== 'false' : !isLifestyleCat;
 
       const products = await productService.getProducts({
         category,
@@ -22,6 +25,7 @@ export class ProductController {
         sort,
         page,
         limit,
+        excludeLifestyle,
       });
 
       sendSuccess(res, 200, messages.product.retrieved, products);
@@ -34,7 +38,8 @@ export class ProductController {
   async getPopular(req: Request, res: Response): Promise<void> {
     try {
       const limit = req.query.limit ? Number(req.query.limit) : 8;
-      const products = await productService.getPopularProducts(limit);
+      const excludeLifestyle = req.query.excludeLifestyle !== "false";
+      const products = await productService.getPopularProducts(limit, excludeLifestyle);
       sendSuccess(res, 200, messages.product.retrieved, products);
     } catch (error) {
       console.error("Get popular products error:", error);

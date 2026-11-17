@@ -75,10 +75,11 @@ export async function initAppSchema(dataSource: DataSource): Promise<void> {
       await dataSource.query("ALTER TABLE `vendors` MODIFY COLUMN `store_banner` VARCHAR(500) NULL");
     } catch (_) {}
 
-    // 7. Upgrade products table for category-aware selling units & variants
+    // 7. Upgrade products table for category-aware selling units, variants & multi-image gallery
     await checkAndAddColumn("products", "selling_unit", "VARCHAR(50) DEFAULT 'piece'");
     await checkAndAddColumn("products", "allow_decimals", "TINYINT DEFAULT 0");
     await checkAndAddColumn("products", "variants_json", "TEXT NULL");
+    await checkAndAddColumn("products", "gallery_json", "TEXT NULL");
 
     // 8. Intelligent backfill for existing products without breaking existing records
     try {

@@ -5,9 +5,10 @@ import { sendSuccess, sendError } from "../helpers/response.helper";
 import { messages } from "../helpers/message.helper";
 
 export class CategoryController {
-  async getAll(_req: Request, res: Response): Promise<void> {
+  async getAll(req: Request, res: Response): Promise<void> {
     try {
-      const categories = await categoryService.getCategories();
+      const excludeLifestyle = req.query.excludeLifestyle !== "false";
+      const categories = await categoryService.getCategories(excludeLifestyle);
       sendSuccess(res, 200, "Categories retrieved successfully", categories);
     } catch (error) {
       console.error("Get categories error:", error);
