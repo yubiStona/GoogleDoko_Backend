@@ -122,12 +122,26 @@ function resolveCategoryMeta(rawName: string) {
 }
 
 export class CategoryService {
-  async getCategories(): Promise<CategoryData[]> {
-    const rawCategories: { category: string; count: string }[] = await productRepository
+  async getCategories(excludeLifestyle = true): Promise<CategoryData[]> {
+    const qb = productRepository
       .createQueryBuilder("product")
       .select("product.category", "category")
       .addSelect("COUNT(product.id)", "count")
-      .where("product.active = 1")
+      .where("product.active = 1");
+
+    if (excludeLifestyle) {
+      qb.andWhere(
+        "LOWER(product.category) NOT IN ('furniture', 'home & living', 'home-living', 'kitchen & dining', 'kitchen-dining', 'garden & outdoor', 'garden-outdoor', 'beauty & personal care', 'beauty-personal-care', 'beauty & skincare', 'fashion & accessories', 'fashion-accessories', 'fashion', 'clothing', 'bags', 'shoes', 'home decor', 'bedsheets')"
+      );
+      qb.andWhere("product.id NOT LIKE 'PROD-FURN-%'");
+      qb.andWhere("product.id NOT LIKE 'PROD-HOME-%'");
+      qb.andWhere("product.id NOT LIKE 'PROD-KITCH-%'");
+      qb.andWhere("product.id NOT LIKE 'PROD-GARD-%'");
+      qb.andWhere("product.id NOT LIKE 'PROD-BEAU-%'");
+      qb.andWhere("product.id NOT LIKE 'PROD-FASH-%'");
+    }
+
+    const rawCategories: { category: string; count: string }[] = await qb
       .groupBy("product.category")
       .getRawMany();
 

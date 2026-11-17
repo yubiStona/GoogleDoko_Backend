@@ -227,7 +227,8 @@ export class AuthService {
   */
   async registerAdmin(data: RegisterAdminData): Promise<AuthResponse> {
     const requiredKey = process.env.ADMIN_INVITE_KEY;
-    if (!requiredKey || !data.adminInviteKey || data.adminInviteKey !== requiredKey) {
+    const inviteKey = data.adminInviteKey || (data as any).securityKey;
+    if (!requiredKey || !inviteKey || inviteKey !== requiredKey) {
       throw new Error("FORBIDDEN");
     }
 
@@ -290,7 +291,7 @@ export class AuthService {
       throw new Error("INVALID_CREDENTIALS");
     }
 
-    if (data.expectedRole && user.role !== data.expectedRole) {
+    if (data.expectedRole && data.expectedRole === "admin" && user.role !== "admin") {
       throw new Error("FORBIDDEN");
     }
 

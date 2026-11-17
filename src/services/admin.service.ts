@@ -19,6 +19,7 @@ import { Coupon } from "../entities/coupon.entity";
 import { PlatformSetting } from "../entities/setting.entity";
 import { SupportMessage } from "../entities/support.entity";
 import { Subscriber } from "../entities/support.entity";
+import { isLifestyleProduct } from "./place.service";
 
 export class AdminService {
   async getOverview() {
@@ -26,25 +27,26 @@ export class AdminService {
       usersCount,
       vendorsCount,
       pendingVendorsCount,
-      productsCount,
       ordersCount,
       paidOrders,
+      products,
     ] = await Promise.all([
       userRepository.count({ where: { role: UserRole.CUSTOMER } }),
       userRepository.count({ where: { role: UserRole.VENDOR } }),
       vendorRepository.count({ where: { status: "under_review" } }),
-      productRepository.count(),
       orderRepository.count(),
       orderRepository.find({ where: { paymentStatus: "Paid" } }),
+      productRepository.find({ select: ["id", "category"] }),
     ]);
 
+    const foodProductsCount = products.filter((p) => !isLifestyleProduct(p)).length;
     const revenue = paidOrders.reduce((sum, order) => sum + order.total, 0);
 
     return {
       users: usersCount,
       vendors: vendorsCount,
       pendingVendors: pendingVendorsCount,
-      products: productsCount,
+      products: foodProductsCount,
       orders: ordersCount,
       revenue,
     };
@@ -226,9 +228,10 @@ export class AdminService {
   }
 
   async getAllProducts(): Promise<Product[]> {
-    return await productRepository.find({
+    const products = await productRepository.find({
       order: { id: "ASC" },
     });
+    return products.filter((p) => !isLifestyleProduct(p));
   }
 
   async saveProduct(
