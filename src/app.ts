@@ -21,6 +21,8 @@ app.use(
 const defaultAllowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5174",
   "http://localhost:4000",
   "http://127.0.0.1:4000",
   "http://localhost:3000",
@@ -43,8 +45,7 @@ app.use(
       ) {
         callback(null, true);
       } else {
-        // In local development, permit any frontend origin to prevent registration/login breakage
-        callback(null, true);
+        callback(new Error("Origin is not allowed by CORS"));
       }
     },
     credentials: true,
