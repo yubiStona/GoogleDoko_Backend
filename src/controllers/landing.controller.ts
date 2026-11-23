@@ -4,17 +4,18 @@ import { sendError, sendSuccess } from "../helpers/response.helper";
 import { messages } from "../helpers/message.helper";
 
 const defaultContent = {
-  eyebrow: "Good things, from close to home",
+  eyebrow: "Good food. Better choices. Local love.",
   title: "Welcome to GoogleDoko",
   description: "Discover local food and lifestyle products, all in one place.",
+  backgroundImage: "/landing-assets/landing-background.jpg",
   food: {
     eyebrow: "Fresh from Nepal",
     title: "Food with a place of origin.",
     description:
       "Shop farm fresh produce and traditional favourites from local growers.",
     button: "Explore food",
-    image: "/landing-assets/food-photo.jpg",
-    imageAlt: "Traditional Nepalese momo served with dipping sauce",
+    image: "/landing-assets/food-card-scene.jpg",
+    imageAlt: "Traditional Nepali food with a Himalayan hillside and temple",
     href: "/food",
   },
   lifestyle: {
@@ -23,8 +24,8 @@ const defaultContent = {
     description:
       "Find thoughtful home, fashion, and handmade goods from Nepalese makers.",
     button: "Explore lifestyle",
-    image: "/landing-assets/lifestyle-photo.jpg",
-    imageAlt: "Colorful locally made bag and home goods",
+    image: "/landing-assets/lifestyle-card-scene.jpg",
+    imageAlt: "Nepali handcrafted bag and home goods beside a mountain view",
     href: "/lifestyle-coming-soon",
   },
 };
@@ -46,6 +47,11 @@ export class LandingController {
         eyebrow: settings.landing_eyebrow || defaultContent.eyebrow,
         title: settings.landing_title || defaultContent.title,
         description: settings.landing_description || defaultContent.description,
+        backgroundImage: mediaUrl(
+          settings.landing_background_image,
+          defaultContent.backgroundImage,
+          origin
+        ),
         food: {
           ...defaultContent.food,
           eyebrow: settings.landing_food_eyebrow || defaultContent.food.eyebrow,
@@ -54,7 +60,8 @@ export class LandingController {
             settings.landing_food_description || defaultContent.food.description,
           button: settings.landing_food_button || defaultContent.food.button,
           image: mediaUrl(
-            settings.landing_food_image === "/landing-assets/food.png"
+            settings.landing_food_image === "/landing-assets/food.png" ||
+            settings.landing_food_image === "/landing-assets/food-photo.jpg"
               ? undefined
               : settings.landing_food_image,
             defaultContent.food.image,
@@ -72,7 +79,8 @@ export class LandingController {
           button:
             settings.landing_lifestyle_button || defaultContent.lifestyle.button,
           image: mediaUrl(
-            settings.landing_lifestyle_image === "/landing-assets/lifestyle.jpg"
+            settings.landing_lifestyle_image === "/landing-assets/lifestyle.jpg" ||
+            settings.landing_lifestyle_image === "/landing-assets/lifestyle-photo.jpg"
               ? undefined
               : settings.landing_lifestyle_image,
             defaultContent.lifestyle.image,
