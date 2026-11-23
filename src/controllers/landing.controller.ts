@@ -13,8 +13,8 @@ const defaultContent = {
     description:
       "Shop farm fresh produce and traditional favourites from local growers.",
     button: "Explore food",
-    image: "/landing-assets/food.png",
-    imageAlt: "A basket filled with fresh vegetables from local farms",
+    image: "/landing-assets/food-photo.jpg",
+    imageAlt: "Traditional Nepalese momo served with dipping sauce",
     href: "/food",
   },
   lifestyle: {
@@ -23,9 +23,9 @@ const defaultContent = {
     description:
       "Find thoughtful home, fashion, and handmade goods from Nepalese makers.",
     button: "Explore lifestyle",
-    image: "/landing-assets/lifestyle.jpg",
-    imageAlt: "Warm, locally styled home with handcrafted decor",
-    href: "/lifestyle",
+    image: "/landing-assets/lifestyle-photo.jpg",
+    imageAlt: "Colorful locally made bag and home goods",
+    href: "/lifestyle-coming-soon",
   },
 };
 
@@ -54,7 +54,9 @@ export class LandingController {
             settings.landing_food_description || defaultContent.food.description,
           button: settings.landing_food_button || defaultContent.food.button,
           image: mediaUrl(
-            settings.landing_food_image,
+            settings.landing_food_image === "/landing-assets/food.png"
+              ? undefined
+              : settings.landing_food_image,
             defaultContent.food.image,
             origin
           ),
@@ -70,7 +72,9 @@ export class LandingController {
           button:
             settings.landing_lifestyle_button || defaultContent.lifestyle.button,
           image: mediaUrl(
-            settings.landing_lifestyle_image,
+            settings.landing_lifestyle_image === "/landing-assets/lifestyle.jpg"
+              ? undefined
+              : settings.landing_lifestyle_image,
             defaultContent.lifestyle.image,
             origin
           ),
