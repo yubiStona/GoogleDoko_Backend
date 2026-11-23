@@ -5,9 +5,8 @@ import { messages } from "../helpers/message.helper";
 
 const defaultContent = {
   eyebrow: "Good things, from close to home",
-  title: "A little more local. A lot more lovely.",
-  description:
-    "Meet the food, makers, and everyday finds that make Nepal feel like home.",
+  title: "Welcome to GoogleDoko",
+  description: "Discover local food and lifestyle products, all in one place.",
   food: {
     eyebrow: "Fresh from Nepal",
     title: "Food with a place of origin.",
