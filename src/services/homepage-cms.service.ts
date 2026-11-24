@@ -20,6 +20,11 @@ const defaults: Record<string, Record<string, unknown>> = {
     button: "Explore lifestyle", image: "/landing-assets/lifestyle-card-scene.jpg",
     imageAlt: "Nepali handcrafted bag and home goods beside a mountain view", href: "/lifestyle-coming-soon",
   },
+  special_offers: { title: "Special offers", description: "Seasonal picks and offers from local sellers.", image: "/landing-assets/offers.jpg", button: "Explore offers", href: "/shop" },
+  how_it_works: { title: "How GoogleDoko works", description: "Shop local in a few simple steps.", step1Title: "Discover", step1Description: "Explore food and local places.", step2Title: "Choose", step2Description: "Pick products from trusted sellers.", step3Title: "Enjoy", step3Description: "Get your order delivered." },
+  why_choose_us: { title: "Why choose GoogleDoko", description: "Good food, local makers, and thoughtful service.", item1Title: "Local first", item1Description: "Support producers across Nepal.", item2Title: "Chosen with care", item2Description: "Discover authentic local goods.", item3Title: "At your door", item3Description: "Simple delivery and support." },
+  promo: { title: "A little more local", description: "Discover what is fresh and special this week.", image: "/landing-assets/promo.jpg", button: "Shop now", href: "/shop" },
+  footer: { aboutTitle: "About GoogleDoko", aboutText: "Discover fresh, authentic and locally sourced products from across Nepal.", location: "Kathmandu, Nepal", phone: "+977 111-111-111", email: "support@googledoko.com", privacyLabel: "Privacy Policy", termsLabel: "Terms & Conditions" },
 };
 
 const allowedKeys = new Set(Object.keys(defaults));
@@ -35,14 +40,12 @@ function parsed(value: unknown): Record<string, unknown> | null {
 
 function validateContent(key: string, content: Record<string, unknown>) {
   if (!allowedKeys.has(key)) throw new Error("INVALID_SECTION");
-  const textFields = key === "hero"
-    ? ["eyebrow", "title", "description", "backgroundImage", "imageAlt"]
-    : ["eyebrow", "title", "description", "button", "image", "imageAlt", "href"];
+  const textFields = Object.keys(defaults[key]);
   for (const field of textFields) {
     const value = content[field];
     if (typeof value !== "string" || value.length > 2000) throw new Error(`INVALID_${field.toUpperCase()}`);
   }
-  if (key !== "hero") {
+  if ("href" in defaults[key]) {
     const href = content.href as string;
     if (!((href.startsWith("/") && !href.startsWith("//")) || /^https:\/\//i.test(href))) throw new Error("INVALID_DESTINATION");
   }
@@ -54,7 +57,7 @@ export class HomepageCmsService {
     const settingMap = Object.fromEntries(settings.map((x) => [x.key, x.value]));
     return Object.entries(defaults).map(([key, fallback], index) => {
       const row = sections.find((section) => section.key === key);
-      const legacyContent = key === "hero" ? {
+    const legacyContent = key === "hero" ? {
         eyebrow: settingMap.landing_eyebrow || fallback.eyebrow,
         title: settingMap.landing_title || fallback.title,
         description: settingMap.landing_description || fallback.description,
@@ -67,14 +70,14 @@ export class HomepageCmsService {
         description: settingMap.landing_food_description || fallback.description,
         button: settingMap.landing_food_button || fallback.button,
         image: settingMap.landing_food_image || fallback.image,
-      } : {
+      } : key === "lifestyle" ? {
         ...fallback,
         eyebrow: settingMap.landing_lifestyle_eyebrow || fallback.eyebrow,
         title: settingMap.landing_lifestyle_title || fallback.title,
         description: settingMap.landing_lifestyle_description || fallback.description,
         button: settingMap.landing_lifestyle_button || fallback.button,
         image: settingMap.landing_lifestyle_image || fallback.image,
-      };
+      } : fallback;
       const published = parsed(row?.publishedContent) || legacyContent;
       return {
         key,
@@ -100,7 +103,7 @@ export class HomepageCmsService {
     const hero = parsed(heroRow?.publishedContent);
     const food = parsed(foodRow?.publishedContent);
     const lifestyle = parsed(lifestyleRow?.publishedContent);
-    if (!hero && !food && !lifestyle) return null;
+    if (!rows.some((row) => row.publishedContent)) return null;
     const merge = (key: string, value: Record<string, unknown> | null, legacy: Record<string, unknown>) => {
       if (value) return value;
       const keys = key === "food" ? ["eyebrow", "title", "description", "button", "image"] : ["eyebrow", "title", "description", "button", "image"];
@@ -109,6 +112,9 @@ export class HomepageCmsService {
       for (const field of keys) if (settingMap[prefix + field]) result[field] = settingMap[prefix + field];
       return result;
     };
+    const contentByKey = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, parsed(lookup.get(key)?.publishedContent) || fallback]));
+    const visibility = Object.fromEntries(Array.from(allowedKeys).map((key) => [key, lookup.get(key)?.publishedVisible ?? 1]));
+    const displayOrder = Object.fromEntries(Array.from(allowedKeys).map((key, index) => [key, lookup.get(key)?.displayOrder ?? index]));
     return {
       eyebrow: hero?.eyebrow || settingMap.landing_eyebrow || defaults.hero.eyebrow,
       title: hero?.title || settingMap.landing_title || defaults.hero.title,
@@ -119,7 +125,9 @@ export class HomepageCmsService {
       foodVisible: foodRow?.publishedVisible ?? 1,
       lifestyle: merge("lifestyle", lifestyle, defaults.lifestyle),
       lifestyleVisible: lifestyleRow?.publishedVisible ?? 1,
-      displayOrder: Object.fromEntries(["hero", "food", "lifestyle"].map((key, index) => [key, lookup.get(key)?.displayOrder ?? index])),
+      sections: contentByKey,
+      visibility,
+      displayOrder,
     };
   }
 

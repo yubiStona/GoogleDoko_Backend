@@ -145,8 +145,12 @@ export class CategoryService {
       .groupBy("product.category")
       .getRawMany();
 
+    const allCmsRows = await websiteCategoryRepository.find();
+    const archivedNames = new Set(allCmsRows.filter((row) => row.status === "archived" && ["product", "lifestyle"].includes(row.group)).map((row) => {
+      try { const content = typeof row.publishedContent === "string" ? JSON.parse(row.publishedContent) : row.publishedContent; return String(content?.name || "").trim().toLowerCase(); } catch { return ""; }
+    }).filter(Boolean));
     const result: CategoryData[] = rawCategories
-      .filter((row) => row.category && row.category.trim().length > 0)
+      .filter((row) => row.category && row.category.trim().length > 0 && !archivedNames.has(row.category.trim().toLowerCase()))
       .map((row) => {
         const name = row.category.trim();
         const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -164,7 +168,7 @@ export class CategoryService {
         };
       });
 
-    const cmsRows = await websiteCategoryRepository.find({ where: { status: "published" }, order: { displayOrder: "ASC" } });
+    const cmsRows = allCmsRows.filter((row) => row.status === "published").sort((a, b) => a.displayOrder - b.displayOrder);
     const cmsGroups = excludeLifestyle ? new Set(["product"]) : new Set(["product", "lifestyle"]);
     for (const row of cmsRows) {
       if (!cmsGroups.has(row.group)) continue;

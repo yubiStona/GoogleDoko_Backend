@@ -4,6 +4,7 @@ import {
   couponRedemptionRepository,
   productRepository,
   orderRepository,
+  homepageSectionRepository,
 } from "../repository";
 
 export interface CheckoutSettings {
@@ -18,6 +19,8 @@ export interface CheckoutSettings {
   socialLinks: Record<string, string>;
   announcement: string;
   marketplaceStatus: string;
+  footerContent: Record<string, string>;
+  footerVisible: boolean;
 }
 
 export class CheckoutService {
@@ -29,6 +32,11 @@ export class CheckoutService {
       settingsMap[item.key] = item.value;
     }
 
+    let footerRow: any = null;
+    try { footerRow = await homepageSectionRepository.findOne({ where: { key: "footer" } }); } catch { /* optional CMS content may be absent in legacy/test data sources */ }
+    const footerPublished = footerRow?.publishedContent;
+    let footerContent: Record<string, string> = {};
+    try { footerContent = (typeof footerPublished === "string" ? JSON.parse(footerPublished) : footerPublished) || {}; } catch { footerContent = {}; }
     return {
       deliveryFee: Number(settingsMap["delivery_fee"] || 50),
       freeDeliveryThreshold: Number(settingsMap["free_delivery_threshold"] || 1500),
@@ -41,6 +49,8 @@ export class CheckoutService {
       socialLinks: Object.fromEntries(["facebook", "instagram", "tiktok"].map((name) => [name, settingsMap[`social_${name}`] || ""])),
       announcement: settingsMap["announcement"] || "",
       marketplaceStatus: settingsMap["marketplace_status"] || "active",
+      footerContent,
+      footerVisible: footerRow?.publishedVisible !== 0,
     };
   }
 

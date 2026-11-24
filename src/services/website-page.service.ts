@@ -1,7 +1,8 @@
 import { contentRevisionRepository, websitePageRepository } from "../repository";
 
 const safeSlug = (slug: string) => slug.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const pageFields = ["title", "description", "body", "heroImage", "imageAlt", "seoTitle", "metaDescription", "socialTitle", "socialDescription", "ogImage"];
+const pageFields = ["title", "description", "body", "heroImage", "imageAlt", "seoTitle", "metaDescription", "socialTitle", "socialDescription", "ogImage", "sectionTitle", "sectionDescription", "promoTitle", "promoDescription", "promoImage", "promoButton", "promoHref"];
+const optionalPageFields = new Set(["sectionTitle", "sectionDescription", "promoTitle", "promoDescription", "promoImage", "promoButton", "promoHref"]);
 function objectContent(value: unknown) {
   if (typeof value === "string") { try { return JSON.parse(value) as Record<string, unknown>; } catch { return null; } }
   return value && typeof value === "object" ? value as Record<string, unknown> : null;
@@ -9,13 +10,16 @@ function objectContent(value: unknown) {
 function validate(content: Record<string, unknown>) {
   for (const key of pageFields) {
     const value = content[key];
+    if ((value === undefined && optionalPageFields.has(key))) continue;
     if (typeof value !== "string" || value.length > (key === "body" ? 30000 : 3000)) throw new Error(`INVALID_${key.toUpperCase()}`);
   }
   if (!String(content.title).trim() || !String(content.description).trim()) throw new Error("TITLE_AND_DESCRIPTION_REQUIRED");
-  for (const key of ["heroImage", "ogImage"]) {
-    const url = String(content[key]).trim();
+  for (const key of ["heroImage", "ogImage", "promoImage"]) {
+    const url = String(content[key] || "").trim();
     if (url && !(url.startsWith("/") && !url.startsWith("//")) && !/^https:\/\//i.test(url)) throw new Error("INVALID_IMAGE_URL");
   }
+  const promoHref = String(content.promoHref || "").trim();
+  if (promoHref && !((promoHref.startsWith("/") && !promoHref.startsWith("//")) || /^https:\/\//i.test(promoHref))) throw new Error("INVALID_PROMO_DESTINATION");
 }
 
 export class WebsitePageService {
@@ -88,6 +92,14 @@ export class WebsitePageService {
     const page = pages.find((item) => item.slug === key || (item.oldSlugs || []).includes(key));
     if (!page || !page.publishedContent) return null;
     return { slug: page.slug, redirect: page.slug !== key, navigationVisible: Boolean(page.navigationVisible), displayOrder: page.displayOrder, ...objectContent(page.publishedContent) };
+  }
+
+  async getNavigation() {
+    const pages = await websitePageRepository.find({ where: { status: "published", navigationVisible: 1 }, order: { displayOrder: "ASC" } });
+    return pages.map((page) => {
+      const content = objectContent(page.publishedContent) || {};
+      return { slug: page.slug, title: String(content.title || page.slug), displayOrder: page.displayOrder };
+    });
   }
 }
 

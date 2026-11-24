@@ -35,6 +35,10 @@ export class WebsitePageController {
       sendSuccess(res, 200, "Published page loaded.", page);
     } catch (error) { console.error("Public page load error:", error); sendError(res, 500, "Could not load page."); }
   }
+  async getNavigation(_req: Request, res: Response) {
+    try { sendSuccess(res, 200, "Website navigation loaded.", await websitePageService.getNavigation()); }
+    catch (error) { console.error("Public navigation load error:", error); sendError(res, 500, "Could not load website navigation."); }
+  }
 }
 
 export default new WebsitePageController();

@@ -47,6 +47,13 @@ export class LandingController {
       const origin = `${protocol}://${req.get("host")}`;
       const foodContent = cms?.food as Record<string, string> | undefined;
       const lifestyleContent = cms?.lifestyle as Record<string, string> | undefined;
+      const homepageSections = Object.fromEntries(Object.entries((cms?.sections || {}) as Record<string, Record<string, unknown>>).map(([key, value]) => {
+        const content = { ...value };
+        for (const imageField of ["image", "backgroundImage"]) {
+          if (typeof content[imageField] === "string") content[imageField] = mediaUrl(content[imageField] as string, "", origin);
+        }
+        return [key, content];
+      }));
       const content = {
         eyebrow: (cms?.eyebrow as string) || settings.landing_eyebrow || defaultContent.eyebrow,
         title: (cms?.title as string) || settings.landing_title || defaultContent.title,
@@ -94,6 +101,8 @@ export class LandingController {
           food: cms?.foodVisible ?? 1,
           lifestyle: cms?.lifestyleVisible ?? 1,
         },
+        sections: homepageSections,
+        displayOrder: cms?.displayOrder || {},
       };
       sendSuccess(res, 200, "Landing page content retrieved successfully.", content);
     } catch (error) {

@@ -57,6 +57,18 @@ describe("homepage CMS publishing", () => {
     const [food] = (await homepageCmsService.getAdminHomepage()).filter((section) => section.key === "food");
     await expect(homepageCmsService.saveDraft("food", { ...food.draftContent, href: "javascript:alert(1)" }, true, 1, 8)).rejects.toThrow("INVALID_DESTINATION");
   });
+
+  it("publishes editable homepage feature sections and preserves their visibility", async () => {
+    const offer = (await homepageCmsService.getAdminHomepage()).find((section) => section.key === "special_offers")!;
+    const draft = { ...offer.draftContent, title: "Autumn harvest offers" };
+    await homepageCmsService.saveDraft("special_offers", draft, false, 3, 8);
+    expect(await homepageCmsService.getPublishedHomepage()).toBeNull();
+    await homepageCmsService.publish("special_offers", 8);
+    const published = await homepageCmsService.getPublishedHomepage();
+    expect(published?.sections.special_offers.title).toBe("Autumn harvest offers");
+    expect(published?.visibility.special_offers).toBe(0);
+    expect(published?.displayOrder.special_offers).toBe(3);
+  });
 });
 
 import websitePageService from "../services/website-page.service";

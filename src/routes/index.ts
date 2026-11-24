@@ -52,6 +52,7 @@ router.use("/offers", offerRoutes);
 router.use("/places", placeRoutes);
 router.use("/lifestyles", lifestyleRoutes);
 router.get("/landing", landingController.getContent.bind(landingController));
+router.get("/navigation", websitePageController.getNavigation.bind(websitePageController));
 router.get("/pages/:slug", websitePageController.getPublic.bind(websitePageController));
 router.get("/site-categories", websiteCategoryController.listPublic.bind(websiteCategoryController));
 

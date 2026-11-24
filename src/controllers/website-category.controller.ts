@@ -3,8 +3,8 @@ import { sendError, sendSuccess } from "../helpers/response.helper";
 import websiteCategoryService from "../services/website-category.service";
 
 export class WebsiteCategoryController {
-  async listAdmin(_req: Request, res: Response) {
-    try { sendSuccess(res, 200, "Website categories loaded.", await websiteCategoryService.listAdmin()); }
+  async listAdmin(req: Request, res: Response) {
+    try { sendSuccess(res, 200, "Website categories loaded.", await websiteCategoryService.listAdmin(Number(req.user?.id))); }
     catch (error) { console.error("Website categories load error:", error); sendError(res, 500, "Could not load categories."); }
   }
   async listPublic(req: Request, res: Response) {
@@ -30,7 +30,7 @@ export class WebsiteCategoryController {
     catch (error: any) { sendError(res, error?.message === "CATEGORY_NOT_FOUND" ? 404 : 400, error?.message || "Could not archive category."); }
   }
   async remove(req: Request, res: Response) {
-    try { await websiteCategoryService.delete(Number(req.params.id), req.body?.reassignToId ? Number(req.body.reassignToId) : undefined); sendSuccess(res, 200, "Category deleted."); }
+    try { await websiteCategoryService.delete(Number(req.params.id), req.body?.reassignToId ? Number(req.body.reassignToId) : undefined, Number(req.user?.id)); sendSuccess(res, 200, "Category deleted or archived."); }
     catch (error: any) {
       const code = error?.message || "";
       const inUse = code.startsWith("CATEGORY_IN_USE:");

@@ -26,6 +26,8 @@ export interface PlaceSummary {
     itemCount: number;
     soldCount: number;
     activeCategoriesCount?: number;
+    heroEyebrow?: string;
+    heroTitle?: string;
 }
 
 export const VERIFIED_PLACE_DESCRIPTIONS: Record<string, string> = {
@@ -116,14 +118,14 @@ export class PlaceService {
         return base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
     }
 
-    private static async resolvePlace(slugOrName: string): Promise<{ key: string; originMatch: string; name: string; description: string; image: string; origin: string }> {
+    private static async resolvePlace(slugOrName: string): Promise<{ key: string; originMatch: string; name: string; description: string; image: string; origin: string; heroEyebrow?: string; heroTitle?: string }> {
         const slug = PlaceService.formatSlug(slugOrName);
         const managed = await websiteCategoryRepository.findOne({ where: { group: 'place', status: 'published', slug } });
         if (managed) {
             let content: Record<string, any> = {};
             try { content = typeof managed.publishedContent === 'string' ? JSON.parse(managed.publishedContent) : managed.publishedContent || {}; } catch { content = {}; }
             const name = String(content.name || managed.slug);
-            return { key: managed.slug, originMatch: name.toLowerCase(), name, description: String(content.description || `Authentic regional farm harvest from ${name}.`), image: String(content.image || `/src/assets/images/places/${managed.slug}.jpg`), origin: `${name}, Nepal` };
+            return { key: managed.slug, originMatch: name.toLowerCase(), name, description: String(content.description || `Authentic regional farm harvest from ${name}.`), image: String(content.image || `/src/assets/images/places/${managed.slug}.jpg`), origin: `${name}, Nepal`, heroEyebrow: String(content.heroEyebrow || "AUTHENTIC REGIONAL ORIGIN"), heroTitle: String(content.heroTitle || `Explore ${name}`) };
         }
         const cleaned = PlaceService.getOriginMatch(slugOrName);
         let key = cleaned;
@@ -222,14 +224,26 @@ export class PlaceService {
             };
         });
 
-        const managedPlaces = await websiteCategoryRepository.find({ where: { group: 'place', status: 'published' }, order: { displayOrder: 'ASC' } });
-        for (const row of managedPlaces) {
+        const managedPlaces = await websiteCategoryRepository.find({ where: { group: 'place' }, order: { displayOrder: 'ASC' } });
+        for (const row of managedPlaces.filter((item) => item.status === 'archived')) {
+            let content: Record<string, any> = {};
+            try { content = typeof row.publishedContent === 'string' ? JSON.parse(row.publishedContent) : row.publishedContent || {}; } catch { continue; }
+            const name = String(content.name || '').trim().toLowerCase();
+            const index = places.findIndex((place) => place.id === row.slug || place.name.toLowerCase() === name);
+            if (index >= 0) places.splice(index, 1);
+        }
+        for (const row of managedPlaces.filter((item) => item.status === 'published')) {
             let content: Record<string, any> = {};
             try { content = typeof row.publishedContent === 'string' ? JSON.parse(row.publishedContent) : row.publishedContent || {}; } catch { continue; }
             const name = String(content.name || '').trim();
-            if (!name || places.some((place) => place.id === row.slug || place.name.toLowerCase() === name.toLowerCase())) continue;
+            if (!name) continue;
+            const existingIndex = places.findIndex((place) => place.id === row.slug || place.name.toLowerCase() === name.toLowerCase());
+            if (existingIndex >= 0) {
+                places[existingIndex] = { ...places[existingIndex], description: String(content.description || places[existingIndex].description), image: String(content.image || places[existingIndex].image), heroEyebrow: String(content.heroEyebrow || "AUTHENTIC REGIONAL ORIGIN"), heroTitle: String(content.heroTitle || `Explore ${name}`) };
+                continue;
+            }
             const related = products.filter((product) => (product.origin || '').toLowerCase().includes(name.toLowerCase()) && !isLifestyleProduct(product));
-            places.push({ id: row.slug, name, origin: `${name}, Nepal`, description: String(content.description || `Authentic regional farm harvest from ${name}.`), image: String(content.image || `/src/assets/images/places/${row.slug}.jpg`), itemCount: related.length, soldCount: related.reduce((total, product) => total + PlaceService.parseSalesCount(product.sold), 0), activeCategoriesCount: new Set(related.map((product) => product.category).filter(Boolean)).size });
+            places.push({ id: row.slug, name, origin: `${name}, Nepal`, description: String(content.description || `Authentic regional farm harvest from ${name}.`), image: String(content.image || `/src/assets/images/places/${row.slug}.jpg`), heroEyebrow: String(content.heroEyebrow || "AUTHENTIC REGIONAL ORIGIN"), heroTitle: String(content.heroTitle || `Explore ${name}`), itemCount: related.length, soldCount: related.reduce((total, product) => total + PlaceService.parseSalesCount(product.sold), 0), activeCategoriesCount: new Set(related.map((product) => product.category).filter(Boolean)).size });
         }
         return places;
     }
@@ -238,6 +252,9 @@ export class PlaceService {
      * Get place metadata by slug or origin string.
      */
     static async getPlaceBySlug(slugOrName: string): Promise<PlaceSummary | null> {
+        const slug = PlaceService.formatSlug(slugOrName);
+        const archived = await websiteCategoryRepository.findOne({ where: { group: 'place', status: 'archived', slug } });
+        if (archived) return null;
         const resolved = await PlaceService.resolvePlace(slugOrName);
         const cleaned = resolved.originMatch;
         let matchedKey: string | null = null;
@@ -312,6 +329,8 @@ export class PlaceService {
             origin: resolved.origin || `${prettyName}, ${isKullu ? 'HP' : 'Nepal'}`,
             description,
             image: resolved.image,
+            heroEyebrow: resolved.heroEyebrow,
+            heroTitle: resolved.heroTitle,
             itemCount: products.length,
             soldCount: totalSold,
             activeCategoriesCount: categories.size
