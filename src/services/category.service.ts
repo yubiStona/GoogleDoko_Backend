@@ -1,4 +1,4 @@
-import { productRepository } from "../repository";
+import { productRepository, websiteCategoryRepository } from "../repository";
 
 export interface CategoryData {
   id: string;
@@ -164,6 +164,27 @@ export class CategoryService {
         };
       });
 
+    const cmsRows = await websiteCategoryRepository.find({ where: { status: "published" }, order: { displayOrder: "ASC" } });
+    const cmsGroups = excludeLifestyle ? new Set(["product"]) : new Set(["product", "lifestyle"]);
+    for (const row of cmsRows) {
+      if (!cmsGroups.has(row.group)) continue;
+      let content: Record<string, any> = {};
+      try { content = typeof row.publishedContent === "string" ? JSON.parse(row.publishedContent) : row.publishedContent || {}; } catch { continue; }
+      const name = String(content.name || "").trim();
+      if (!name) continue;
+      const slug = row.slug;
+      const existingIndex = result.findIndex((category) => category.slug === slug || category.name.toLowerCase() === name.toLowerCase());
+      const meta = resolveCategoryMeta(name);
+      const category: CategoryData = {
+        id: slug, name, slug, description: String(content.description || meta.description),
+        productCount: await productRepository.count({ where: { category: name, active: 1 } }),
+        image: String(content.image || meta.image),
+        theme: ["orange", "green", "red", "teal", "yellow", "blue", "purple", "rose"].includes(content.theme) ? content.theme : meta.theme,
+        icon: String(content.icon || meta.icon),
+      };
+      if (existingIndex >= 0) result[existingIndex] = category;
+      else result.push(category);
+    }
     return result;
   }
 

@@ -11,6 +11,11 @@ export interface CheckoutSettings {
   freeDeliveryThreshold: number;
   supportPhone: string;
   supportEmail: string;
+  businessName: string;
+  supportAddress: string;
+  businessHours: string;
+  mapsUrl: string;
+  socialLinks: Record<string, string>;
   announcement: string;
   marketplaceStatus: string;
 }
@@ -29,6 +34,11 @@ export class CheckoutService {
       freeDeliveryThreshold: Number(settingsMap["free_delivery_threshold"] || 1500),
       supportPhone: settingsMap["support_phone"] || "+977 980-123-4567",
       supportEmail: settingsMap["support_email"] || "support@googledoko.com",
+      businessName: settingsMap["business_name"] || "GoogleDoko",
+      supportAddress: settingsMap["support_address"] || "Kathmandu, Nepal",
+      businessHours: settingsMap["business_hours"] || "",
+      mapsUrl: settingsMap["google_maps_url"] || "",
+      socialLinks: Object.fromEntries(["facebook", "instagram", "tiktok"].map((name) => [name, settingsMap[`social_${name}`] || ""])),
       announcement: settingsMap["announcement"] || "",
       marketplaceStatus: settingsMap["marketplace_status"] || "active",
     };

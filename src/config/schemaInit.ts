@@ -2,6 +2,67 @@ import { DataSource } from "typeorm";
 
 export async function initAppSchema(dataSource: DataSource): Promise<void> {
   try {
+    await dataSource.query(`CREATE TABLE IF NOT EXISTS homepage_sections (
+      section_key VARCHAR(80) PRIMARY KEY,
+      draft_content JSON NULL,
+      published_content JSON NULL,
+      published_visible TINYINT NOT NULL DEFAULT 1,
+      draft_visible TINYINT NOT NULL DEFAULT 1,
+      display_order INT NOT NULL DEFAULT 0,
+      draft_display_order INT NOT NULL DEFAULT 0,
+      updated_by INT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_homepage_display_order (display_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    await dataSource.query(`CREATE TABLE IF NOT EXISTS content_revisions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      record_type VARCHAR(60) NOT NULL,
+      record_key VARCHAR(120) NOT NULL,
+      action VARCHAR(30) NOT NULL,
+      previous_content JSON NULL,
+      new_content JSON NULL,
+      admin_user_id INT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_content_revision_record (record_type, record_key, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    await dataSource.query(`CREATE TABLE IF NOT EXISTS website_pages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(160) NOT NULL UNIQUE,
+      draft_slug VARCHAR(160) NULL,
+      draft_content JSON NULL,
+      published_content JSON NULL,
+      old_slugs JSON NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'draft',
+      navigation_visible TINYINT NOT NULL DEFAULT 0,
+      display_order INT NOT NULL DEFAULT 0,
+      created_by INT NULL,
+      updated_by INT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_website_page_status_order (status, display_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    await dataSource.query(`CREATE TABLE IF NOT EXISTS website_categories (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      \`group\` VARCHAR(20) NOT NULL,
+      slug VARCHAR(160) NOT NULL,
+      parent_id INT NULL,
+      draft_content JSON NULL,
+      published_content JSON NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'draft',
+      display_order INT NOT NULL DEFAULT 0,
+      created_by INT NULL,
+      updated_by INT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_website_category_group (\`group\`, status, display_order),
+      INDEX idx_website_category_parent (parent_id),
+      UNIQUE KEY uq_website_category_group_slug (\`group\`, slug)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
     const checkAndAddColumn = async (table: string, column: string, def: string) => {
       try {
         const cols: any[] = await dataSource.query(`SHOW COLUMNS FROM \`${table}\` LIKE '${column}'`);
@@ -12,6 +73,8 @@ export async function initAppSchema(dataSource: DataSource): Promise<void> {
         console.warn(`Could not add column ${column} to ${table}:`, (err as any)?.message || err);
       }
     };
+    await checkAndAddColumn("homepage_sections", "draft_visible", "TINYINT NOT NULL DEFAULT 1");
+    await checkAndAddColumn("homepage_sections", "draft_display_order", "INT NOT NULL DEFAULT 0");
 
     // 1. Upgrade reviews table
     await checkAndAddColumn("reviews", "order_id", "VARCHAR(100) NULL");

@@ -25,6 +25,8 @@ import checkoutController from "../controllers/checkout.controller";
 import authController from "../controllers/auth.controller";
 import { subscriberValidator } from "../validations/support.validator";
 import { validateCouponValidator } from "../validations/checkout.validator";
+import websitePageController from "../controllers/website-page.controller";
+import websiteCategoryController from "../controllers/website-category.controller";
 import { updateShopValidator } from "../validations/auth.validator";
 import { authenticate } from "../middleware/auth.middleware";
 import { validateRequest } from "../middleware/validation.middleware";
@@ -50,6 +52,8 @@ router.use("/offers", offerRoutes);
 router.use("/places", placeRoutes);
 router.use("/lifestyles", lifestyleRoutes);
 router.get("/landing", landingController.getContent.bind(landingController));
+router.get("/pages/:slug", websitePageController.getPublic.bind(websitePageController));
+router.get("/site-categories", websiteCategoryController.listPublic.bind(websiteCategoryController));
 
 // Direct top-level endpoints used by frontend
 router.get("/search", productController.search);
