@@ -71,6 +71,17 @@ app.use(
   })
 );
 
+// Versioned storefront artwork served by the API so the customer app can use
+// the same managed media URLs returned by the landing-content endpoint.
+app.use(
+  "/landing-assets",
+  express.static(path.join(process.cwd(), "public", "landing"), {
+    dotfiles: "ignore",
+    index: false,
+    maxAge: "7d",
+  })
+);
+
 app.get("/api/health", (_req, res) => {
   sendSuccess(res, 200, "GoogleDoko API is running.", {
     timestamp: new Date().toISOString(),
