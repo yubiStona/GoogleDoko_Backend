@@ -50,7 +50,7 @@ export class LandingController {
       const homepageSections = Object.fromEntries(Object.entries((cms?.sections || {}) as Record<string, Record<string, unknown>>).map(([key, value]) => {
         const content = { ...value };
         for (const imageField of ["image", "backgroundImage"]) {
-          if (typeof content[imageField] === "string") content[imageField] = mediaUrl(content[imageField] as string, "", origin);
+          if (typeof content[imageField] === "string" && (content[imageField] as string).trim()) content[imageField] = mediaUrl(content[imageField] as string, "", origin);
         }
         return [key, content];
       }));

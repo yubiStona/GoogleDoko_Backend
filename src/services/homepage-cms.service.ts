@@ -20,11 +20,15 @@ const defaults: Record<string, Record<string, unknown>> = {
     button: "Explore lifestyle", image: "/landing-assets/lifestyle-card-scene.jpg",
     imageAlt: "Nepali handcrafted bag and home goods beside a mountain view", href: "/lifestyle-coming-soon",
   },
-  special_offers: { title: "Special offers", description: "Seasonal picks and offers from local sellers.", image: "/landing-assets/offers.jpg", button: "Explore offers", href: "/shop" },
-  how_it_works: { title: "How GoogleDoko works", description: "Shop local in a few simple steps.", step1Title: "Discover", step1Description: "Explore food and local places.", step2Title: "Choose", step2Description: "Pick products from trusted sellers.", step3Title: "Enjoy", step3Description: "Get your order delivered." },
-  why_choose_us: { title: "Why choose GoogleDoko", description: "Good food, local makers, and thoughtful service.", item1Title: "Local first", item1Description: "Support producers across Nepal.", item2Title: "Chosen with care", item2Description: "Discover authentic local goods.", item3Title: "At your door", item3Description: "Simple delivery and support." },
-  promo: { title: "A little more local", description: "Discover what is fresh and special this week.", image: "/landing-assets/promo.jpg", button: "Shop now", href: "/shop" },
-  footer: { aboutTitle: "About GoogleDoko", aboutText: "Discover fresh, authentic and locally sourced products from across Nepal.", location: "Kathmandu, Nepal", phone: "+977 111-111-111", email: "support@googledoko.com", privacyLabel: "Privacy Policy", termsLabel: "Terms & Conditions" },
+  food_home_hero: { eyebrow: "From local places across Nepal", title: "Discover authentic products from their original places.", description: "Shop fresh fruits, vegetables, groceries and discover authentic local products from trusted sellers.", primaryButton: "Shop Now", secondaryButton: "Explore Local Places", image: "", imageAlt: "Fresh vegetables in a basket" },
+  food_home_explore: { title: "Explore the land of mountains and vibrant culture", description: "Find fresh food, local places, and trusted sellers across Nepal.", item1Title: "Top Rank Farms", item1Description: "Farm-fresh produce for your family's table.", item2Title: "Organic Certified", item2Description: "Naturally grown products for a healthier lifestyle.", item3Title: "Fast Delivery", item3Description: "Fresh groceries delivered to your doorstep.", item4Title: "Trusted Products", item4Description: "Handpicked, high-quality local goods." },
+  food_home_special_offers: { title: "Special offers", description: "Seasonal picks and offers from local sellers.", image: "/landing-assets/offers.jpg", button: "Explore offers", href: "/shop" },
+  food_home_places: { title: "Shop by Local Areas", description: "Discover authentic local products sourced directly from their original regions." },
+  food_home_categories: { title: "Shop By Categories", description: "Browse our freshest harvest, dairy, and artisanal goods." },
+  food_home_how_it_works: { title: "How GoogleDoko works", description: "Shop local in a few simple steps.", step1Title: "Discover", step1Description: "Explore food and local places.", step2Title: "Choose", step2Description: "Pick products from trusted sellers.", step3Title: "Enjoy", step3Description: "Get your order delivered." },
+  food_home_why_choose_us: { title: "Why choose GoogleDoko", description: "Good food, local makers, and thoughtful service.", item1Title: "Local first", item1Description: "Support producers across Nepal.", item2Title: "Chosen with care", item2Description: "Discover authentic local goods.", item3Title: "At your door", item3Description: "Simple delivery and support." },
+  food_home_promo: { title: "A little more local", description: "Discover what is fresh and special this week.", image: "/landing-assets/promo.jpg", button: "Shop now", href: "/shop" },
+  food_home_footer: { aboutTitle: "About GoogleDoko", aboutText: "Discover fresh, authentic and locally sourced products from across Nepal.", location: "Kathmandu, Nepal", phone: "+977 111-111-111", email: "support@googledoko.com", privacyLabel: "Privacy Policy", termsLabel: "Terms & Conditions" },
 };
 
 const allowedKeys = new Set(Object.keys(defaults));
@@ -56,7 +60,10 @@ export class HomepageCmsService {
     const [sections, settings] = await Promise.all([homepageSectionRepository.find({ order: { displayOrder: "ASC" } }), settingRepository.find()]);
     const settingMap = Object.fromEntries(settings.map((x) => [x.key, x.value]));
     return Object.entries(defaults).map(([key, fallback], index) => {
-      const row = sections.find((section) => section.key === key);
+      // Keep historical records readable while new edits are stored with an
+      // explicit food_home_ prefix so the admin can separate site pages.
+      const legacyKey = key.startsWith("food_home_") ? key.slice("food_home_".length) : key;
+      const row = sections.find((section) => section.key === key) || sections.find((section) => section.key === legacyKey);
     const legacyContent = key === "hero" ? {
         eyebrow: settingMap.landing_eyebrow || fallback.eyebrow,
         title: settingMap.landing_title || fallback.title,
@@ -112,9 +119,14 @@ export class HomepageCmsService {
       for (const field of keys) if (settingMap[prefix + field]) result[field] = settingMap[prefix + field];
       return result;
     };
-    const contentByKey = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, parsed(lookup.get(key)?.publishedContent) || fallback]));
-    const visibility = Object.fromEntries(Array.from(allowedKeys).map((key) => [key, lookup.get(key)?.publishedVisible ?? 1]));
-    const displayOrder = Object.fromEntries(Array.from(allowedKeys).map((key, index) => [key, lookup.get(key)?.displayOrder ?? index]));
+    const contentByKey = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => {
+      const legacyKey = key.startsWith("food_home_") ? key.slice("food_home_".length) : key;
+      const row = lookup.get(key) || lookup.get(legacyKey);
+      return [key, parsed(row?.publishedContent) || fallback];
+    }));
+    const rowFor = (key: string) => lookup.get(key) || (key.startsWith("food_home_") ? lookup.get(key.slice("food_home_".length)) : undefined);
+    const visibility = Object.fromEntries(Array.from(allowedKeys).map((key) => [key, rowFor(key)?.publishedVisible ?? 1]));
+    const displayOrder = Object.fromEntries(Array.from(allowedKeys).map((key, index) => [key, rowFor(key)?.displayOrder ?? index]));
     return {
       eyebrow: hero?.eyebrow || settingMap.landing_eyebrow || defaults.hero.eyebrow,
       title: hero?.title || settingMap.landing_title || defaults.hero.title,

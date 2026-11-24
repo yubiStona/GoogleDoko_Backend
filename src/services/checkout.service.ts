@@ -33,7 +33,10 @@ export class CheckoutService {
     }
 
     let footerRow: any = null;
-    try { footerRow = await homepageSectionRepository.findOne({ where: { key: "footer" } }); } catch { /* optional CMS content may be absent in legacy/test data sources */ }
+    try {
+      footerRow = await homepageSectionRepository.findOne({ where: { key: "food_home_footer" } })
+        || await homepageSectionRepository.findOne({ where: { key: "footer" } });
+    } catch { /* optional CMS content may be absent in legacy/test data sources */ }
     const footerPublished = footerRow?.publishedContent;
     let footerContent: Record<string, string> = {};
     try { footerContent = (typeof footerPublished === "string" ? JSON.parse(footerPublished) : footerPublished) || {}; } catch { footerContent = {}; }
