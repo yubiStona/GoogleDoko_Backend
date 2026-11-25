@@ -48,6 +48,7 @@ router.post("/reviews/:id/reply", vendorController.replyVendorReview);
 
 // Notifications
 router.get("/notifications", vendorController.getVendorNotifications);
+router.post("/notifications/read", vendorController.markNotificationsRead);
 
 // Profile
 router.get("/profile", vendorController.getVendorProfile);

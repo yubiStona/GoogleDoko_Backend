@@ -5,6 +5,7 @@ import {
   vendorRepository,
   orderRepository,
   reviewRepository,
+  userRepository,
 } from "../repository";
 
 describe("Vendor Service & Business Logic Tests", () => {
@@ -264,6 +265,42 @@ describe("Vendor Service & Business Logic Tests", () => {
       expect(reports.bars.length).toBe(7);
       expect(reports.transactions.length).toBe(2);
       expect(reports.transactions[0].amount).toBe("Rs. 777");
+    });
+  });
+
+  describe("Requirement 9: Vendor Notifications & Mark as Read", () => {
+    it("returns vendor notifications with read status and allows marking notifications as read", async () => {
+      const mockUser = {
+        id: 44,
+        shopJson: JSON.stringify({ readNotificationIds: ["status-under-review"] }),
+      };
+      vi.spyOn(vendorRepository, "findOne").mockResolvedValue({
+        userId: 44,
+        status: "under_review",
+      } as any);
+      vi.spyOn(productRepository, "find").mockResolvedValue([
+        { id: "PROD-1", name: "Apple", active: 1, stock: 3, vendorUserId: 44 },
+      ] as any);
+      vi.spyOn(vendorService, "getVendorOrders").mockResolvedValue([]);
+      vi.spyOn(reviewRepository, "find").mockResolvedValue([]);
+      vi.spyOn(userRepository, "findOne").mockResolvedValue(mockUser as any);
+      const saveSpy = vi.spyOn(userRepository, "save").mockResolvedValue(mockUser as any);
+
+      // Check initial notifications with read status
+      const notes = await vendorService.getVendorNotifications(44);
+      expect(notes.length).toBe(2);
+      const underReview = notes.find((n) => n.id === "status-under-review");
+      const lowStock = notes.find((n) => n.id === "stock-PROD-1");
+
+      expect(underReview?.read).toBe(true);
+      expect(lowStock?.read).toBe(false);
+
+      // Mark low stock as read
+      const result = await vendorService.markNotificationsRead(44, ["stock-PROD-1"]);
+      expect(result.success).toBe(true);
+      expect(result.readIds).toContain("status-under-review");
+      expect(result.readIds).toContain("stock-PROD-1");
+      expect(saveSpy).toHaveBeenCalled();
     });
   });
 });

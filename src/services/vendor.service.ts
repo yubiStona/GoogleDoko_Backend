@@ -925,7 +925,56 @@ export class VendorService {
       }
     }
 
-    return notifications;
+    // Attach read status from user's shop preferences
+    const user = await userRepository.findOne({ where: { id: userId } });
+    let readIds: string[] = [];
+    if (user?.shopJson) {
+      try {
+        const parsed = JSON.parse(user.shopJson);
+        if (Array.isArray(parsed.readNotificationIds)) {
+          readIds = parsed.readNotificationIds;
+        }
+      } catch {}
+    }
+
+    return notifications.map((n) => ({
+      ...n,
+      read: readIds.includes(n.id),
+    }));
+  }
+
+  async markNotificationsRead(
+    userId: number,
+    notificationIds?: string[]
+  ): Promise<{ success: boolean; readIds: string[] }> {
+    const user = await userRepository.findOne({ where: { id: userId } });
+    if (!user) return { success: false, readIds: [] };
+
+    let shop: Record<string, any> = {};
+    if (user.shopJson) {
+      try {
+        shop = JSON.parse(user.shopJson);
+      } catch {}
+    }
+
+    const currentRead: string[] = Array.isArray(shop.readNotificationIds)
+      ? shop.readNotificationIds
+      : [];
+    let toAdd: string[] = [];
+
+    if (Array.isArray(notificationIds) && notificationIds.length > 0) {
+      toAdd = notificationIds;
+    } else {
+      const currentNotes = await this.getVendorNotifications(userId);
+      toAdd = currentNotes.map((n) => n.id);
+    }
+
+    const updated = Array.from(new Set([...currentRead, ...toAdd]));
+    shop.readNotificationIds = updated;
+    user.shopJson = JSON.stringify(shop);
+    await userRepository.save(user);
+
+    return { success: true, readIds: updated };
   }
 
   async getVendorProfile(userId: number): Promise<any> {
