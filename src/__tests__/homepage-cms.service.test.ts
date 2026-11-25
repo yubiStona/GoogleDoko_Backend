@@ -59,15 +59,15 @@ describe("homepage CMS publishing", () => {
   });
 
   it("publishes editable homepage feature sections and preserves their visibility", async () => {
-    const offer = (await homepageCmsService.getAdminHomepage()).find((section) => section.key === "special_offers")!;
+    const offer = (await homepageCmsService.getAdminHomepage()).find((section) => section.key === "food_home_special_offers" || section.key === "special_offers")!;
     const draft = { ...offer.draftContent, title: "Autumn harvest offers" };
-    await homepageCmsService.saveDraft("special_offers", draft, false, 3, 8);
+    await homepageCmsService.saveDraft(offer.key, draft, false, 3, 8);
     expect(await homepageCmsService.getPublishedHomepage()).toBeNull();
-    await homepageCmsService.publish("special_offers", 8);
+    await homepageCmsService.publish(offer.key, 8);
     const published = await homepageCmsService.getPublishedHomepage();
-    expect(published?.sections.special_offers.title).toBe("Autumn harvest offers");
-    expect(published?.visibility.special_offers).toBe(0);
-    expect(published?.displayOrder.special_offers).toBe(3);
+    expect(published?.sections[offer.key].title).toBe("Autumn harvest offers");
+    expect(published?.visibility[offer.key]).toBe(0);
+    expect(published?.displayOrder[offer.key]).toBe(3);
   });
 });
 
