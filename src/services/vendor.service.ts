@@ -557,27 +557,63 @@ export class VendorService {
     const vendorOrders = await this.getVendorOrders(userId);
     const products = await productRepository.find({ where: { vendorUserId: userId } });
 
-    const totalSales = vendorOrders
+    // Normalize range parameter: accepts "Last 7 Days", "Last 30 Days", "This Year", "7days", "30days", "1year", etc.
+    const rangeLower = String(range || "").toLowerCase();
+    const is7Days = rangeLower.includes("7") || rangeLower.includes("week");
+    const isYear = rangeLower.includes("year") || rangeLower.includes("12") || rangeLower.includes("365");
+
+    const now = new Date();
+    let cutoffDate: Date;
+    let daysCount = 30;
+
+    if (is7Days) {
+      cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      daysCount = 7;
+    } else if (isYear) {
+      cutoffDate = new Date(now.getFullYear(), 0, 1);
+      daysCount = 365;
+    } else {
+      cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      daysCount = 30;
+    }
+
+    // Filter orders by cutoff date
+    const ordersInRange = vendorOrders.filter((o) => {
+      const od = o.createdAt ? new Date(o.createdAt) : new Date(o.date || Date.now());
+      return !isNaN(od.getTime()) && od >= cutoffDate;
+    });
+
+    const activeOrders = ordersInRange;
+
+    const totalSales = activeOrders
       .filter((o) => String(o.status).toLowerCase() !== "cancelled")
       .reduce((sum, o) => sum + Number(o.total || 0), 0);
 
-    const completedOrders = vendorOrders.filter((o) =>
+    const completedOrders = activeOrders.filter((o) =>
       ["delivered", "completed"].includes(String(o.status).toLowerCase())
     ).length;
 
-    const avgOrderValue = vendorOrders.length > 0 ? Math.round(totalSales / vendorOrders.length) : 0;
+    const avgOrderValue = activeOrders.length > 0 ? Math.round(totalSales / activeOrders.length) : 0;
 
-    // Category distribution
+    // Category distribution from active orders
     const categoryMap = new Map<string, { sales: number; count: number }>();
-    for (const order of vendorOrders) {
+    for (const order of activeOrders) {
       if (String(order.status).toLowerCase() !== "cancelled") {
-        for (const item of order.items || []) {
-          const cat = item.category || "General";
-          const current = categoryMap.get(cat) || { sales: 0, count: 0 };
-          const itemTotal = Number(item.price || 0) * Number(item.quantity || 1);
-          current.sales += itemTotal;
-          current.count += Number(item.quantity || 1);
-          categoryMap.set(cat, current);
+        const items = order.items && order.items.length > 0 ? order.items : [];
+        if (items.length > 0) {
+          for (const item of items) {
+            const cat = item.category || "General";
+            const current = categoryMap.get(cat) || { sales: 0, count: 0 };
+            const itemTotal = Number(item.price || 0) * Number(item.quantity || 1);
+            current.sales += itemTotal;
+            current.count += Number(item.quantity || 1);
+            categoryMap.set(cat, current);
+          }
+        } else {
+          const current = categoryMap.get("General") || { sales: 0, count: 0 };
+          current.sales += Number(order.total || 0);
+          current.count += 1;
+          categoryMap.set("General", current);
         }
       }
     }
@@ -597,34 +633,37 @@ export class VendorService {
       };
     });
 
-    // Generate dynamic chart bars for requested range
+    // Dynamic trend bars: 7 buckets covering the selected range
     const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const bars: { day: string; height: number; amount: number; orders: number }[] = [];
-    const now = new Date();
-    const daysCount = range === "7days" ? 7 : range === "1year" ? 12 : 30;
+    const bucketCount = 7;
+    const bucketDurationMs = (daysCount * 24 * 60 * 60 * 1000) / bucketCount;
+    const startTime = now.getTime() - daysCount * 24 * 60 * 60 * 1000;
 
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      const offset = range === "7days" ? i : Math.round(i * (daysCount / 7));
-      d.setDate(d.getDate() - offset);
-      const iso = d.toISOString().split("T")[0];
-      const dayLetter = dayLabels[d.getDay()][0];
+    for (let i = 0; i < bucketCount; i++) {
+      const bStart = startTime + i * bucketDurationMs;
+      const bEnd = startTime + (i + 1) * bucketDurationMs;
+      const midDate = new Date((bStart + bEnd) / 2);
+      const dayLetter = dayLabels[midDate.getDay()][0];
 
-      const matches = vendorOrders.filter((o) => {
-        const od = o.createdAt
-          ? new Date(o.createdAt).toISOString().split("T")[0]
-          : o.date
-          ? new Date(o.date).toISOString().split("T")[0]
-          : "";
-        return od === iso && String(o.status).toLowerCase() !== "cancelled";
+      const matches = activeOrders.filter((o) => {
+        if (String(o.status).toLowerCase() === "cancelled") return false;
+        const od = o.createdAt ? new Date(o.createdAt).getTime() : o.date ? new Date(o.date).getTime() : NaN;
+        return !isNaN(od) && od >= bStart && od < bEnd;
       });
+
       const rev = matches.reduce((sum, o) => sum + Number(o.total || 0), 0);
-      bars.push({ day: dayLetter, height: 0, amount: rev, orders: matches.length });
+      bars.push({
+        day: dayLetter,
+        height: 0,
+        amount: rev,
+        orders: matches.length,
+      });
     }
 
-    const peakBar = Math.max(...bars.map((b) => b.amount), 1);
+    const peakBar = Math.max(...bars.map((b) => b.amount), 0);
     for (const b of bars) {
-      b.height = b.amount > 0 ? Math.max(15, Math.round((b.amount / peakBar) * 100)) : 8;
+      b.height = peakBar > 0 && b.amount > 0 ? Math.max(15, Math.round((b.amount / peakBar) * 100)) : 8;
     }
 
     // Order status counts
@@ -636,7 +675,7 @@ export class VendorService {
       delivered: 0,
       cancelled: 0,
     };
-    for (const order of vendorOrders) {
+    for (const order of activeOrders) {
       const st = String(order.status).toLowerCase();
       if (statusCounts[st] !== undefined) {
         statusCounts[st] += 1;
@@ -645,23 +684,34 @@ export class VendorService {
       }
     }
 
-    const recentTransactions = vendorOrders.slice(0, 5).map((o) => ({
-      id: o.id,
-      customer: o.recipientName || "Customer",
-      date: o.date || (o.createdAt ? new Date(o.createdAt).toLocaleDateString() : ""),
-      amount: `Rs. ${Number(o.total || 0).toLocaleString()}`,
-      status: o.status,
-    }));
+    const recentTransactions = activeOrders.slice(0, 5).map((o) => {
+      const orderDate = o.createdAt ? new Date(o.createdAt) : new Date(o.date || Date.now());
+      return {
+        id: o.id,
+        customer: o.recipientName || "Customer",
+        date: !isNaN(orderDate.getTime()) ? orderDate.toISOString() : (o.date || ""),
+        createdAt: o.createdAt || o.date,
+        amount: `Rs. ${Number(o.total || 0).toLocaleString()}`,
+        status: o.status,
+      };
+    });
+
+    const metrics = {
+      grossRevenue: totalSales,
+      netRevenue: totalSales,
+      totalOrders: activeOrders.length,
+      completedOrders,
+      avgOrderValue,
+    };
 
     return {
       range,
-      metrics: {
-        grossRevenue: totalSales,
-        netRevenue: totalSales,
-        totalOrders: vendorOrders.length,
-        completedOrders,
-        avgOrderValue,
-      },
+      grossRevenue: totalSales,
+      netRevenue: totalSales,
+      totalOrders: activeOrders.length,
+      completedOrders,
+      avgOrderValue,
+      metrics,
       bars,
       categories,
       statusCounts,

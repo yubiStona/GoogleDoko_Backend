@@ -226,4 +226,44 @@ describe("Vendor Service & Business Logic Tests", () => {
       ).rejects.toThrow("FORBIDDEN");
     });
   });
+
+  describe("Requirement 8: Vendor Reports & Sales Analytics Service", () => {
+    it("returns calculated metrics, category breakdown, bars, and transactions for real vendor orders", async () => {
+      vi.spyOn(vendorService, "getVendorOrders").mockResolvedValue([
+        {
+          id: "GD-1",
+          recipientName: "raman",
+          date: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          total: 777,
+          status: "Delivered",
+          items: [{ category: "Fruits", price: 777, quantity: 1, name: "Apple" }],
+        },
+        {
+          id: "GD-2",
+          recipientName: "raman",
+          date: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          total: 999,
+          status: "Preparing",
+          items: [{ category: "Fruits", price: 999, quantity: 1, name: "Orange" }],
+        },
+      ] as any);
+
+      vi.spyOn(productRepository, "find").mockResolvedValue([{ id: "P1", vendorUserId: 44 }] as any);
+
+      const reports = await vendorService.getVendorReports(44, "Last 30 Days");
+
+      expect(reports.grossRevenue).toBe(1776);
+      expect(reports.totalOrders).toBe(2);
+      expect(reports.completedOrders).toBe(1);
+      expect(reports.avgOrderValue).toBe(888);
+      expect(reports.metrics.grossRevenue).toBe(1776);
+      expect(reports.metrics.totalOrders).toBe(2);
+      expect(reports.categories.length).toBeGreaterThan(0);
+      expect(reports.bars.length).toBe(7);
+      expect(reports.transactions.length).toBe(2);
+      expect(reports.transactions[0].amount).toBe("Rs. 777");
+    });
+  });
 });
