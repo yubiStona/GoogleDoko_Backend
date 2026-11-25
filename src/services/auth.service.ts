@@ -299,7 +299,8 @@ export class AuthService {
       throw new Error("INVALID_CREDENTIALS");
     }
 
-    if (data.expectedRole && data.expectedRole === "admin" && user.role !== "admin") {
+    const expectedRole = data.expectedRole || "customer";
+    if (user.role !== expectedRole) {
       throw new Error("FORBIDDEN");
     }
 
