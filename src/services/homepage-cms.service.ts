@@ -47,9 +47,11 @@ function validateContent(key: string, content: Record<string, unknown>) {
   const textFields = Object.keys(defaults[key]);
   for (const field of textFields) {
     const value = content[field];
-    if (typeof value !== "string" || value.length > 2000) throw new Error(`INVALID_${field.toUpperCase()}`);
+    // Website content is optional. Validate values when supplied, but allow
+    // fields to be blank or omitted so admins can clear content deliberately.
+    if (value !== undefined && (typeof value !== "string" || value.length > 2000)) throw new Error(`INVALID_${field.toUpperCase()}`);
   }
-  if ("href" in defaults[key]) {
+  if ("href" in defaults[key] && content.href) {
     const href = content.href as string;
     if (!((href.startsWith("/") && !href.startsWith("//")) || /^https:\/\//i.test(href))) throw new Error("INVALID_DESTINATION");
   }
@@ -128,10 +130,10 @@ export class HomepageCmsService {
     const visibility = Object.fromEntries(Array.from(allowedKeys).map((key) => [key, rowFor(key)?.publishedVisible ?? 1]));
     const displayOrder = Object.fromEntries(Array.from(allowedKeys).map((key, index) => [key, rowFor(key)?.displayOrder ?? index]));
     return {
-      eyebrow: hero?.eyebrow || settingMap.landing_eyebrow || defaults.hero.eyebrow,
-      title: hero?.title || settingMap.landing_title || defaults.hero.title,
-      description: hero?.description || settingMap.landing_description || defaults.hero.description,
-      backgroundImage: hero?.backgroundImage || settingMap.landing_background_image || defaults.hero.backgroundImage,
+      eyebrow: hero?.eyebrow ?? settingMap.landing_eyebrow ?? defaults.hero.eyebrow,
+      title: hero?.title ?? settingMap.landing_title ?? defaults.hero.title,
+      description: hero?.description ?? settingMap.landing_description ?? defaults.hero.description,
+      backgroundImage: hero?.backgroundImage ?? settingMap.landing_background_image ?? defaults.hero.backgroundImage,
       heroVisible: heroRow?.publishedVisible ?? 1,
       food: merge("food", food, defaults.food),
       foodVisible: foodRow?.publishedVisible ?? 1,

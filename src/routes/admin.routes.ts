@@ -31,7 +31,7 @@ router.get("/cms/homepage", homepageCmsController.getAdmin.bind(homepageCmsContr
 router.get("/cms/history", contentHistoryController.list.bind(contentHistoryController));
 router.put(
   "/cms/homepage/:key/draft",
-  param("key").isIn(["hero", "food", "lifestyle"]),
+  param("key").isIn(["hero", "food", "lifestyle", "food_home_hero", "food_home_explore", "food_home_special_offers", "food_home_places", "food_home_categories", "food_home_how_it_works", "food_home_why_choose_us", "food_home_promo", "food_home_footer"]),
   body("content").isObject(),
   body("visible").isBoolean(),
   body("displayOrder").isInt({ min: 0 }),
@@ -40,7 +40,7 @@ router.put(
 );
 router.post(
   "/cms/homepage/:key/publish",
-  param("key").isIn(["hero", "food", "lifestyle"]),
+  param("key").isIn(["hero", "food", "lifestyle", "food_home_hero", "food_home_explore", "food_home_special_offers", "food_home_places", "food_home_categories", "food_home_how_it_works", "food_home_why_choose_us", "food_home_promo", "food_home_footer"]),
   validateRequest,
   homepageCmsController.publish.bind(homepageCmsController)
 );
