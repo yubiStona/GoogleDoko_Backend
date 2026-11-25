@@ -434,37 +434,68 @@ export class VendorService {
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
 
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     let todaySales = 0;
+    let todayOrdersCount = 0;
     let weeklySales = 0;
+    let weeklyOrdersCount = 0;
     let monthlySales = 0;
+    let monthlyOrdersCount = 0;
     let totalSales = 0;
     let completedOrders = 0;
     let pendingPayments = 0;
+    let pendingPayout = 0;
+    let pendingPayoutCount = 0;
 
     const transactions: any[] = [];
 
     for (const order of vendorOrders) {
       const orderDate = order.createdAt ? new Date(order.createdAt) : new Date(order.date || Date.now());
-      const orderDateStr = orderDate.toISOString().split("T")[0];
+      const orderDateStr = !isNaN(orderDate.getTime()) ? orderDate.toISOString().split("T")[0] : "";
       const isCancelled = String(order.status).toLowerCase() === "cancelled";
       const amount = Number(order.total || 0);
 
+      // Check if order date matches today (by ISO date or local date)
+      const isToday =
+        orderDateStr === todayStr ||
+        (!isNaN(orderDate.getTime()) &&
+          orderDate.getFullYear() === now.getFullYear() &&
+          orderDate.getMonth() === now.getMonth() &&
+          orderDate.getDate() === now.getDate());
+
+      const isThisMonth =
+        !isNaN(orderDate.getTime()) &&
+        orderDate.getFullYear() === now.getFullYear() &&
+        orderDate.getMonth() === now.getMonth();
+
       if (!isCancelled) {
         totalSales += amount;
-        if (orderDateStr === todayStr) {
+        if (isToday) {
           todaySales += amount;
+          todayOrdersCount += 1;
         }
         if (orderDate >= sevenDaysAgo) {
           weeklySales += amount;
+          weeklyOrdersCount += 1;
         }
-        if (orderDate >= thirtyDaysAgo) {
+        if (isThisMonth || orderDate >= thirtyDaysAgo) {
           monthlySales += amount;
+          monthlyOrdersCount += 1;
+        }
+
+        // Pending COD payout: COD orders awaiting customer delivery / payment collection
+        const isCod =
+          String(order.paymentMethod || "").toLowerCase().includes("cod") ||
+          String(order.paymentMethod || "").toLowerCase().includes("cash");
+        const isPending =
+          String(order.paymentStatus || "").toLowerCase() === "pending" ||
+          !["delivered", "completed"].includes(String(order.status || "").toLowerCase());
+
+        if (isCod && isPending) {
+          pendingPayout += amount;
+          pendingPayoutCount += 1;
         }
       }
 
@@ -480,6 +511,7 @@ export class VendorService {
       transactions.push({
         id: order.id,
         date: order.date || orderDateStr,
+        createdAt: order.createdAt || order.date,
         customer: order.recipientName || "Customer",
         phone: order.recipientPhone || "",
         items: itemsSummary,
@@ -493,6 +525,16 @@ export class VendorService {
     }
 
     return {
+      todaySales,
+      weeklySales,
+      monthlySales,
+      totalSales,
+      completedOrders,
+      pendingPayout,
+      todayOrdersCount,
+      weeklyOrdersCount,
+      monthlyOrdersCount,
+      pendingPayoutCount,
       metrics: {
         todaySales,
         weeklySales,
@@ -500,6 +542,11 @@ export class VendorService {
         totalSales,
         completedOrders,
         pendingPayments,
+        pendingPayout,
+        todayOrdersCount,
+        weeklyOrdersCount,
+        monthlyOrdersCount,
+        pendingPayoutCount,
         totalOrders: vendorOrders.length,
       },
       transactions,
