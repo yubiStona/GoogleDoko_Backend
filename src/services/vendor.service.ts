@@ -434,37 +434,68 @@ export class VendorService {
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
 
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     let todaySales = 0;
+    let todayOrdersCount = 0;
     let weeklySales = 0;
+    let weeklyOrdersCount = 0;
     let monthlySales = 0;
+    let monthlyOrdersCount = 0;
     let totalSales = 0;
     let completedOrders = 0;
     let pendingPayments = 0;
+    let pendingPayout = 0;
+    let pendingPayoutCount = 0;
 
     const transactions: any[] = [];
 
     for (const order of vendorOrders) {
       const orderDate = order.createdAt ? new Date(order.createdAt) : new Date(order.date || Date.now());
-      const orderDateStr = orderDate.toISOString().split("T")[0];
+      const orderDateStr = !isNaN(orderDate.getTime()) ? orderDate.toISOString().split("T")[0] : "";
       const isCancelled = String(order.status).toLowerCase() === "cancelled";
       const amount = Number(order.total || 0);
 
+      // Check if order date matches today (by ISO date or local date)
+      const isToday =
+        orderDateStr === todayStr ||
+        (!isNaN(orderDate.getTime()) &&
+          orderDate.getFullYear() === now.getFullYear() &&
+          orderDate.getMonth() === now.getMonth() &&
+          orderDate.getDate() === now.getDate());
+
+      const isThisMonth =
+        !isNaN(orderDate.getTime()) &&
+        orderDate.getFullYear() === now.getFullYear() &&
+        orderDate.getMonth() === now.getMonth();
+
       if (!isCancelled) {
         totalSales += amount;
-        if (orderDateStr === todayStr) {
+        if (isToday) {
           todaySales += amount;
+          todayOrdersCount += 1;
         }
         if (orderDate >= sevenDaysAgo) {
           weeklySales += amount;
+          weeklyOrdersCount += 1;
         }
-        if (orderDate >= thirtyDaysAgo) {
+        if (isThisMonth || orderDate >= thirtyDaysAgo) {
           monthlySales += amount;
+          monthlyOrdersCount += 1;
+        }
+
+        // Pending COD payout: COD orders awaiting customer delivery / payment collection
+        const isCod =
+          String(order.paymentMethod || "").toLowerCase().includes("cod") ||
+          String(order.paymentMethod || "").toLowerCase().includes("cash");
+        const isPending =
+          String(order.paymentStatus || "").toLowerCase() === "pending" ||
+          !["delivered", "completed"].includes(String(order.status || "").toLowerCase());
+
+        if (isCod && isPending) {
+          pendingPayout += amount;
+          pendingPayoutCount += 1;
         }
       }
 
@@ -480,6 +511,7 @@ export class VendorService {
       transactions.push({
         id: order.id,
         date: order.date || orderDateStr,
+        createdAt: order.createdAt || order.date,
         customer: order.recipientName || "Customer",
         phone: order.recipientPhone || "",
         items: itemsSummary,
@@ -493,6 +525,16 @@ export class VendorService {
     }
 
     return {
+      todaySales,
+      weeklySales,
+      monthlySales,
+      totalSales,
+      completedOrders,
+      pendingPayout,
+      todayOrdersCount,
+      weeklyOrdersCount,
+      monthlyOrdersCount,
+      pendingPayoutCount,
       metrics: {
         todaySales,
         weeklySales,
@@ -500,6 +542,11 @@ export class VendorService {
         totalSales,
         completedOrders,
         pendingPayments,
+        pendingPayout,
+        todayOrdersCount,
+        weeklyOrdersCount,
+        monthlyOrdersCount,
+        pendingPayoutCount,
         totalOrders: vendorOrders.length,
       },
       transactions,
@@ -510,27 +557,63 @@ export class VendorService {
     const vendorOrders = await this.getVendorOrders(userId);
     const products = await productRepository.find({ where: { vendorUserId: userId } });
 
-    const totalSales = vendorOrders
+    // Normalize range parameter: accepts "Last 7 Days", "Last 30 Days", "This Year", "7days", "30days", "1year", etc.
+    const rangeLower = String(range || "").toLowerCase();
+    const is7Days = rangeLower.includes("7") || rangeLower.includes("week");
+    const isYear = rangeLower.includes("year") || rangeLower.includes("12") || rangeLower.includes("365");
+
+    const now = new Date();
+    let cutoffDate: Date;
+    let daysCount = 30;
+
+    if (is7Days) {
+      cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      daysCount = 7;
+    } else if (isYear) {
+      cutoffDate = new Date(now.getFullYear(), 0, 1);
+      daysCount = 365;
+    } else {
+      cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      daysCount = 30;
+    }
+
+    // Filter orders by cutoff date
+    const ordersInRange = vendorOrders.filter((o) => {
+      const od = o.createdAt ? new Date(o.createdAt) : new Date(o.date || Date.now());
+      return !isNaN(od.getTime()) && od >= cutoffDate;
+    });
+
+    const activeOrders = ordersInRange;
+
+    const totalSales = activeOrders
       .filter((o) => String(o.status).toLowerCase() !== "cancelled")
       .reduce((sum, o) => sum + Number(o.total || 0), 0);
 
-    const completedOrders = vendorOrders.filter((o) =>
+    const completedOrders = activeOrders.filter((o) =>
       ["delivered", "completed"].includes(String(o.status).toLowerCase())
     ).length;
 
-    const avgOrderValue = vendorOrders.length > 0 ? Math.round(totalSales / vendorOrders.length) : 0;
+    const avgOrderValue = activeOrders.length > 0 ? Math.round(totalSales / activeOrders.length) : 0;
 
-    // Category distribution
+    // Category distribution from active orders
     const categoryMap = new Map<string, { sales: number; count: number }>();
-    for (const order of vendorOrders) {
+    for (const order of activeOrders) {
       if (String(order.status).toLowerCase() !== "cancelled") {
-        for (const item of order.items || []) {
-          const cat = item.category || "General";
-          const current = categoryMap.get(cat) || { sales: 0, count: 0 };
-          const itemTotal = Number(item.price || 0) * Number(item.quantity || 1);
-          current.sales += itemTotal;
-          current.count += Number(item.quantity || 1);
-          categoryMap.set(cat, current);
+        const items = order.items && order.items.length > 0 ? order.items : [];
+        if (items.length > 0) {
+          for (const item of items) {
+            const cat = item.category || "General";
+            const current = categoryMap.get(cat) || { sales: 0, count: 0 };
+            const itemTotal = Number(item.price || 0) * Number(item.quantity || 1);
+            current.sales += itemTotal;
+            current.count += Number(item.quantity || 1);
+            categoryMap.set(cat, current);
+          }
+        } else {
+          const current = categoryMap.get("General") || { sales: 0, count: 0 };
+          current.sales += Number(order.total || 0);
+          current.count += 1;
+          categoryMap.set("General", current);
         }
       }
     }
@@ -550,34 +633,37 @@ export class VendorService {
       };
     });
 
-    // Generate dynamic chart bars for requested range
+    // Dynamic trend bars: 7 buckets covering the selected range
     const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const bars: { day: string; height: number; amount: number; orders: number }[] = [];
-    const now = new Date();
-    const daysCount = range === "7days" ? 7 : range === "1year" ? 12 : 30;
+    const bucketCount = 7;
+    const bucketDurationMs = (daysCount * 24 * 60 * 60 * 1000) / bucketCount;
+    const startTime = now.getTime() - daysCount * 24 * 60 * 60 * 1000;
 
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      const offset = range === "7days" ? i : Math.round(i * (daysCount / 7));
-      d.setDate(d.getDate() - offset);
-      const iso = d.toISOString().split("T")[0];
-      const dayLetter = dayLabels[d.getDay()][0];
+    for (let i = 0; i < bucketCount; i++) {
+      const bStart = startTime + i * bucketDurationMs;
+      const bEnd = startTime + (i + 1) * bucketDurationMs;
+      const midDate = new Date((bStart + bEnd) / 2);
+      const dayLetter = dayLabels[midDate.getDay()][0];
 
-      const matches = vendorOrders.filter((o) => {
-        const od = o.createdAt
-          ? new Date(o.createdAt).toISOString().split("T")[0]
-          : o.date
-          ? new Date(o.date).toISOString().split("T")[0]
-          : "";
-        return od === iso && String(o.status).toLowerCase() !== "cancelled";
+      const matches = activeOrders.filter((o) => {
+        if (String(o.status).toLowerCase() === "cancelled") return false;
+        const od = o.createdAt ? new Date(o.createdAt).getTime() : o.date ? new Date(o.date).getTime() : NaN;
+        return !isNaN(od) && od >= bStart && od < bEnd;
       });
+
       const rev = matches.reduce((sum, o) => sum + Number(o.total || 0), 0);
-      bars.push({ day: dayLetter, height: 0, amount: rev, orders: matches.length });
+      bars.push({
+        day: dayLetter,
+        height: 0,
+        amount: rev,
+        orders: matches.length,
+      });
     }
 
-    const peakBar = Math.max(...bars.map((b) => b.amount), 1);
+    const peakBar = Math.max(...bars.map((b) => b.amount), 0);
     for (const b of bars) {
-      b.height = b.amount > 0 ? Math.max(15, Math.round((b.amount / peakBar) * 100)) : 8;
+      b.height = peakBar > 0 && b.amount > 0 ? Math.max(15, Math.round((b.amount / peakBar) * 100)) : 8;
     }
 
     // Order status counts
@@ -589,7 +675,7 @@ export class VendorService {
       delivered: 0,
       cancelled: 0,
     };
-    for (const order of vendorOrders) {
+    for (const order of activeOrders) {
       const st = String(order.status).toLowerCase();
       if (statusCounts[st] !== undefined) {
         statusCounts[st] += 1;
@@ -598,23 +684,34 @@ export class VendorService {
       }
     }
 
-    const recentTransactions = vendorOrders.slice(0, 5).map((o) => ({
-      id: o.id,
-      customer: o.recipientName || "Customer",
-      date: o.date || (o.createdAt ? new Date(o.createdAt).toLocaleDateString() : ""),
-      amount: `Rs. ${Number(o.total || 0).toLocaleString()}`,
-      status: o.status,
-    }));
+    const recentTransactions = activeOrders.slice(0, 5).map((o) => {
+      const orderDate = o.createdAt ? new Date(o.createdAt) : new Date(o.date || Date.now());
+      return {
+        id: o.id,
+        customer: o.recipientName || "Customer",
+        date: !isNaN(orderDate.getTime()) ? orderDate.toISOString() : (o.date || ""),
+        createdAt: o.createdAt || o.date,
+        amount: `Rs. ${Number(o.total || 0).toLocaleString()}`,
+        status: o.status,
+      };
+    });
+
+    const metrics = {
+      grossRevenue: totalSales,
+      netRevenue: totalSales,
+      totalOrders: activeOrders.length,
+      completedOrders,
+      avgOrderValue,
+    };
 
     return {
       range,
-      metrics: {
-        grossRevenue: totalSales,
-        netRevenue: totalSales,
-        totalOrders: vendorOrders.length,
-        completedOrders,
-        avgOrderValue,
-      },
+      grossRevenue: totalSales,
+      netRevenue: totalSales,
+      totalOrders: activeOrders.length,
+      completedOrders,
+      avgOrderValue,
+      metrics,
       bars,
       categories,
       statusCounts,
@@ -828,7 +925,56 @@ export class VendorService {
       }
     }
 
-    return notifications;
+    // Attach read status from user's shop preferences
+    const user = await userRepository.findOne({ where: { id: userId } });
+    let readIds: string[] = [];
+    if (user?.shopJson) {
+      try {
+        const parsed = JSON.parse(user.shopJson);
+        if (Array.isArray(parsed.readNotificationIds)) {
+          readIds = parsed.readNotificationIds;
+        }
+      } catch {}
+    }
+
+    return notifications.map((n) => ({
+      ...n,
+      read: readIds.includes(n.id),
+    }));
+  }
+
+  async markNotificationsRead(
+    userId: number,
+    notificationIds?: string[]
+  ): Promise<{ success: boolean; readIds: string[] }> {
+    const user = await userRepository.findOne({ where: { id: userId } });
+    if (!user) return { success: false, readIds: [] };
+
+    let shop: Record<string, any> = {};
+    if (user.shopJson) {
+      try {
+        shop = JSON.parse(user.shopJson);
+      } catch {}
+    }
+
+    const currentRead: string[] = Array.isArray(shop.readNotificationIds)
+      ? shop.readNotificationIds
+      : [];
+    let toAdd: string[] = [];
+
+    if (Array.isArray(notificationIds) && notificationIds.length > 0) {
+      toAdd = notificationIds;
+    } else {
+      const currentNotes = await this.getVendorNotifications(userId);
+      toAdd = currentNotes.map((n) => n.id);
+    }
+
+    const updated = Array.from(new Set([...currentRead, ...toAdd]));
+    shop.readNotificationIds = updated;
+    user.shopJson = JSON.stringify(shop);
+    await userRepository.save(user);
+
+    return { success: true, readIds: updated };
   }
 
   async getVendorProfile(userId: number): Promise<any> {

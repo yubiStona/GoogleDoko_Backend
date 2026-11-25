@@ -5,6 +5,7 @@ import {
   vendorRepository,
   orderRepository,
   reviewRepository,
+  userRepository,
 } from "../repository";
 
 describe("Vendor Service & Business Logic Tests", () => {
@@ -224,6 +225,82 @@ describe("Vendor Service & Business Logic Tests", () => {
       await expect(
         vendorService.replyVendorReview(44, 8, "Hacked reply")
       ).rejects.toThrow("FORBIDDEN");
+    });
+  });
+
+  describe("Requirement 8: Vendor Reports & Sales Analytics Service", () => {
+    it("returns calculated metrics, category breakdown, bars, and transactions for real vendor orders", async () => {
+      vi.spyOn(vendorService, "getVendorOrders").mockResolvedValue([
+        {
+          id: "GD-1",
+          recipientName: "raman",
+          date: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          total: 777,
+          status: "Delivered",
+          items: [{ category: "Fruits", price: 777, quantity: 1, name: "Apple" }],
+        },
+        {
+          id: "GD-2",
+          recipientName: "raman",
+          date: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          total: 999,
+          status: "Preparing",
+          items: [{ category: "Fruits", price: 999, quantity: 1, name: "Orange" }],
+        },
+      ] as any);
+
+      vi.spyOn(productRepository, "find").mockResolvedValue([{ id: "P1", vendorUserId: 44 }] as any);
+
+      const reports = await vendorService.getVendorReports(44, "Last 30 Days");
+
+      expect(reports.grossRevenue).toBe(1776);
+      expect(reports.totalOrders).toBe(2);
+      expect(reports.completedOrders).toBe(1);
+      expect(reports.avgOrderValue).toBe(888);
+      expect(reports.metrics.grossRevenue).toBe(1776);
+      expect(reports.metrics.totalOrders).toBe(2);
+      expect(reports.categories.length).toBeGreaterThan(0);
+      expect(reports.bars.length).toBe(7);
+      expect(reports.transactions.length).toBe(2);
+      expect(reports.transactions[0].amount).toBe("Rs. 777");
+    });
+  });
+
+  describe("Requirement 9: Vendor Notifications & Mark as Read", () => {
+    it("returns vendor notifications with read status and allows marking notifications as read", async () => {
+      const mockUser = {
+        id: 44,
+        shopJson: JSON.stringify({ readNotificationIds: ["status-under-review"] }),
+      };
+      vi.spyOn(vendorRepository, "findOne").mockResolvedValue({
+        userId: 44,
+        status: "under_review",
+      } as any);
+      vi.spyOn(productRepository, "find").mockResolvedValue([
+        { id: "PROD-1", name: "Apple", active: 1, stock: 3, vendorUserId: 44 },
+      ] as any);
+      vi.spyOn(vendorService, "getVendorOrders").mockResolvedValue([]);
+      vi.spyOn(reviewRepository, "find").mockResolvedValue([]);
+      vi.spyOn(userRepository, "findOne").mockResolvedValue(mockUser as any);
+      const saveSpy = vi.spyOn(userRepository, "save").mockResolvedValue(mockUser as any);
+
+      // Check initial notifications with read status
+      const notes = await vendorService.getVendorNotifications(44);
+      expect(notes.length).toBe(2);
+      const underReview = notes.find((n) => n.id === "status-under-review");
+      const lowStock = notes.find((n) => n.id === "stock-PROD-1");
+
+      expect(underReview?.read).toBe(true);
+      expect(lowStock?.read).toBe(false);
+
+      // Mark low stock as read
+      const result = await vendorService.markNotificationsRead(44, ["stock-PROD-1"]);
+      expect(result.success).toBe(true);
+      expect(result.readIds).toContain("status-under-review");
+      expect(result.readIds).toContain("stock-PROD-1");
+      expect(saveSpy).toHaveBeenCalled();
     });
   });
 });

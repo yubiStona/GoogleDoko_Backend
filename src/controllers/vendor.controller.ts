@@ -206,6 +206,18 @@ export class VendorController {
     }
   }
 
+  async markNotificationsRead(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.id;
+      const { notificationIds } = req.body || {};
+      const data = await vendorService.markNotificationsRead(userId, notificationIds);
+      sendSuccess(res, 200, "Notifications marked as read", data);
+    } catch (error) {
+      console.error("Mark notifications read error:", error);
+      sendError(res, 500, messages.common.internalServerError);
+    }
+  }
+
   async getVendorProfile(req: Request, res: Response): Promise<void> {
     try {
       const userId = req.user!.id;
