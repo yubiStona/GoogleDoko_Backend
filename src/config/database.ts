@@ -23,6 +23,10 @@ import {
   PasswordReset,
   LifestyleCollection,
   ProductLifestyle,
+  HomepageSection,
+  ContentRevision,
+  WebsitePage,
+  WebsiteCategory,
 } from "../entities";
 
 /*
@@ -105,6 +109,10 @@ export const appDataSource = new DataSource({
     PasswordReset,
     LifestyleCollection,
     ProductLifestyle,
+    HomepageSection,
+    ContentRevision,
+    WebsitePage,
+    WebsiteCategory,
   ],
 
   /*

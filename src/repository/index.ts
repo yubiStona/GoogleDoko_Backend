@@ -19,6 +19,10 @@ import {
   PasswordReset,
   LifestyleCollection,
   ProductLifestyle,
+  HomepageSection,
+  ContentRevision,
+  WebsitePage,
+  WebsiteCategory,
 } from "../entities";
 
 export const userRepository = appDataSource.getRepository(User);
@@ -56,3 +60,7 @@ export const passwordResetRepository = appDataSource.getRepository(PasswordReset
 export const lifestyleCollectionRepository = appDataSource.getRepository(LifestyleCollection);
 
 export const productLifestyleRepository = appDataSource.getRepository(ProductLifestyle);
+export const homepageSectionRepository = appDataSource.getRepository(HomepageSection);
+export const contentRevisionRepository = appDataSource.getRepository(ContentRevision);
+export const websitePageRepository = appDataSource.getRepository(WebsitePage);
+export const websiteCategoryRepository = appDataSource.getRepository(WebsiteCategory);

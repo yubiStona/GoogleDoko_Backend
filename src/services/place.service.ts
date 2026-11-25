@@ -1,4 +1,4 @@
-import { productRepository, orderRepository } from '../repository';
+import { productRepository, orderRepository, websiteCategoryRepository } from '../repository';
 import { Product } from '../entities/product.entity';
 
 export interface PlaceCategorySummary {
@@ -26,6 +26,8 @@ export interface PlaceSummary {
     itemCount: number;
     soldCount: number;
     activeCategoriesCount?: number;
+    heroEyebrow?: string;
+    heroTitle?: string;
 }
 
 export const VERIFIED_PLACE_DESCRIPTIONS: Record<string, string> = {
@@ -116,6 +118,25 @@ export class PlaceService {
         return base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
     }
 
+    private static async resolvePlace(slugOrName: string): Promise<{ key: string; originMatch: string; name: string; description: string; image: string; origin: string; heroEyebrow?: string; heroTitle?: string }> {
+        const slug = PlaceService.formatSlug(slugOrName);
+        const managed = await websiteCategoryRepository.findOne({ where: { group: 'place', status: 'published', slug } });
+        if (managed) {
+            let content: Record<string, any> = {};
+            try { content = typeof managed.publishedContent === 'string' ? JSON.parse(managed.publishedContent) : managed.publishedContent || {}; } catch { content = {}; }
+            const name = String(content.name || managed.slug);
+            return { key: managed.slug, originMatch: name.toLowerCase(), name, description: String(content.description || `Authentic regional farm harvest from ${name}.`), image: String(content.image || `/src/assets/images/places/${managed.slug}.jpg`), origin: `${name}, Nepal`, heroEyebrow: String(content.heroEyebrow || "AUTHENTIC REGIONAL ORIGIN"), heroTitle: String(content.heroTitle || `Explore ${name}`) };
+        }
+        const cleaned = PlaceService.getOriginMatch(slugOrName);
+        let key = cleaned;
+        for (const known of Object.keys(VERIFIED_PLACE_DESCRIPTIONS)) {
+            if (cleaned.includes(known) || known.includes(cleaned)) { key = known; break; }
+        }
+        const name = PlaceService.getPrettyName(key);
+        const kullu = key === 'kullu';
+        return { key, originMatch: key, name, description: VERIFIED_PLACE_DESCRIPTIONS[key] || `Authentic regional farm harvest from ${name}.`, image: `/src/assets/images/places/${key}.jpg`, origin: `${name}, ${kullu ? 'HP' : 'Nepal'}` };
+    }
+
     private static parseSalesCount(soldStr: string | number | undefined): number {
         if (!soldStr) return 0;
         if (typeof soldStr === 'number') return soldStr;
@@ -203,6 +224,27 @@ export class PlaceService {
             };
         });
 
+        const managedPlaces = await websiteCategoryRepository.find({ where: { group: 'place' }, order: { displayOrder: 'ASC' } });
+        for (const row of managedPlaces.filter((item) => item.status === 'archived')) {
+            let content: Record<string, any> = {};
+            try { content = typeof row.publishedContent === 'string' ? JSON.parse(row.publishedContent) : row.publishedContent || {}; } catch { continue; }
+            const name = String(content.name || '').trim().toLowerCase();
+            const index = places.findIndex((place) => place.id === row.slug || place.name.toLowerCase() === name);
+            if (index >= 0) places.splice(index, 1);
+        }
+        for (const row of managedPlaces.filter((item) => item.status === 'published')) {
+            let content: Record<string, any> = {};
+            try { content = typeof row.publishedContent === 'string' ? JSON.parse(row.publishedContent) : row.publishedContent || {}; } catch { continue; }
+            const name = String(content.name || '').trim();
+            if (!name) continue;
+            const existingIndex = places.findIndex((place) => place.id === row.slug || place.name.toLowerCase() === name.toLowerCase());
+            if (existingIndex >= 0) {
+                places[existingIndex] = { ...places[existingIndex], description: String(content.description || places[existingIndex].description), image: String(content.image || places[existingIndex].image), heroEyebrow: String(content.heroEyebrow || "AUTHENTIC REGIONAL ORIGIN"), heroTitle: String(content.heroTitle || `Explore ${name}`) };
+                continue;
+            }
+            const related = products.filter((product) => (product.origin || '').toLowerCase().includes(name.toLowerCase()) && !isLifestyleProduct(product));
+            places.push({ id: row.slug, name, origin: `${name}, Nepal`, description: String(content.description || `Authentic regional farm harvest from ${name}.`), image: String(content.image || `/src/assets/images/places/${row.slug}.jpg`), heroEyebrow: String(content.heroEyebrow || "AUTHENTIC REGIONAL ORIGIN"), heroTitle: String(content.heroTitle || `Explore ${name}`), itemCount: related.length, soldCount: related.reduce((total, product) => total + PlaceService.parseSalesCount(product.sold), 0), activeCategoriesCount: new Set(related.map((product) => product.category).filter(Boolean)).size });
+        }
         return places;
     }
 
@@ -210,7 +252,11 @@ export class PlaceService {
      * Get place metadata by slug or origin string.
      */
     static async getPlaceBySlug(slugOrName: string): Promise<PlaceSummary | null> {
-        const cleaned = PlaceService.getOriginMatch(slugOrName);
+        const slug = PlaceService.formatSlug(slugOrName);
+        const archived = await websiteCategoryRepository.findOne({ where: { group: 'place', status: 'archived', slug } });
+        if (archived) return null;
+        const resolved = await PlaceService.resolvePlace(slugOrName);
+        const cleaned = resolved.originMatch;
         let matchedKey: string | null = null;
 
         for (const key of Object.keys(VERIFIED_PLACE_DESCRIPTIONS)) {
@@ -224,14 +270,14 @@ export class PlaceService {
             matchedKey = PlaceService.formatSlug(slugOrName);
         }
 
-        const description = VERIFIED_PLACE_DESCRIPTIONS[matchedKey] || `Authentic regional farm harvest from ${PlaceService.getPrettyName(matchedKey)}.`;
-        const prettyName = PlaceService.getPrettyName(matchedKey);
-        const isKullu = matchedKey === 'kullu';
+        const description = resolved.description;
+        const prettyName = resolved.name;
+        const isKullu = matchedKey === 'kullu' || resolved.origin.endsWith('HP');
 
         const productsRaw = await productRepository
             .createQueryBuilder('p')
             .where('p.active = 1')
-            .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${matchedKey}%` })
+            .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${cleaned}%` })
             .andWhere('LOWER(p.category) NOT IN (:...lifestyleCats)', { lifestyleCats: LIFESTYLE_CATEGORIES })
             .andWhere("p.id NOT LIKE 'PROD-FURN-%'")
             .andWhere("p.id NOT LIKE 'PROD-HOME-%'")
@@ -278,11 +324,13 @@ export class PlaceService {
         }
 
         return {
-            id: matchedKey,
+            id: resolved.key,
             name: prettyName,
-            origin: `${prettyName}, ${isKullu ? 'HP' : 'Nepal'}`,
+            origin: resolved.origin || `${prettyName}, ${isKullu ? 'HP' : 'Nepal'}`,
             description,
-            image: `/src/assets/images/places/${matchedKey}.jpg`,
+            image: resolved.image,
+            heroEyebrow: resolved.heroEyebrow,
+            heroTitle: resolved.heroTitle,
             itemCount: products.length,
             soldCount: totalSold,
             activeCategoriesCount: categories.size
@@ -293,7 +341,7 @@ export class PlaceService {
      * Get dynamic categories available strictly within this location (only categories with active products).
      */
     static async getPlaceCategories(slugOrName: string): Promise<PlaceCategorySummary[]> {
-        const cleaned = PlaceService.getOriginMatch(slugOrName);
+        const cleaned = (await PlaceService.resolvePlace(slugOrName)).originMatch;
         let matchedKey = cleaned;
         for (const key of Object.keys(VERIFIED_PLACE_DESCRIPTIONS)) {
             if (cleaned.includes(key) || key.includes(cleaned)) {
@@ -307,7 +355,7 @@ export class PlaceService {
             .select('TRIM(p.category)', 'category')
             .addSelect('COUNT(p.id)', 'count')
             .where('p.active = 1')
-            .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${matchedKey}%` })
+            .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${cleaned}%` })
             .andWhere('LOWER(p.category) NOT IN (:...lifestyleCats)', { lifestyleCats: LIFESTYLE_CATEGORIES })
             .andWhere("p.id NOT LIKE 'PROD-FURN-%'")
             .andWhere("p.id NOT LIKE 'PROD-HOME-%'")
@@ -339,7 +387,7 @@ export class PlaceService {
         limit: number;
         totalPages: number;
     }> {
-        const cleaned = PlaceService.getOriginMatch(slugOrName);
+        const cleaned = (await PlaceService.resolvePlace(slugOrName)).originMatch;
         let matchedKey = cleaned;
         for (const key of Object.keys(VERIFIED_PLACE_DESCRIPTIONS)) {
             if (cleaned.includes(key) || key.includes(cleaned)) {
@@ -351,7 +399,7 @@ export class PlaceService {
         const query = productRepository
             .createQueryBuilder('p')
             .where('p.active = 1')
-            .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${matchedKey}%` })
+            .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${cleaned}%` })
             .andWhere('LOWER(p.category) NOT IN (:...lifestyleCats)', { lifestyleCats: LIFESTYLE_CATEGORIES })
             .andWhere("p.id NOT LIKE 'PROD-FURN-%'")
             .andWhere("p.id NOT LIKE 'PROD-HOME-%'")
@@ -429,7 +477,7 @@ export class PlaceService {
      * Computes popularity score = genuine completed order items quantity + baseline sold count.
      */
     static async getPlacePopularProducts(slugOrName: string, limitCount = 4): Promise<Product[]> {
-        const cleaned = PlaceService.getOriginMatch(slugOrName);
+        const cleaned = (await PlaceService.resolvePlace(slugOrName)).originMatch;
         let matchedKey = cleaned;
         for (const key of Object.keys(VERIFIED_PLACE_DESCRIPTIONS)) {
             if (cleaned.includes(key) || key.includes(cleaned)) {
@@ -441,7 +489,7 @@ export class PlaceService {
         const productsRaw = await productRepository
             .createQueryBuilder('p')
             .where('p.active = 1')
-            .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${matchedKey}%` })
+            .andWhere('LOWER(p.origin) LIKE :originMatch', { originMatch: `%${cleaned}%` })
             .andWhere('LOWER(p.category) NOT IN (:...lifestyleCats)', { lifestyleCats: LIFESTYLE_CATEGORIES })
             .andWhere("p.id NOT LIKE 'PROD-FURN-%'")
             .andWhere("p.id NOT LIKE 'PROD-HOME-%'")

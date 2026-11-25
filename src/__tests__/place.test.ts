@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import placeService, { VERIFIED_PLACE_DESCRIPTIONS } from "../services/place.service";
-import { productRepository, orderRepository } from "../repository";
+import { productRepository, orderRepository, websiteCategoryRepository } from "../repository";
 
 describe("Explore by Places - Backend Tests", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(websiteCategoryRepository, "find").mockResolvedValue([]);
+    vi.spyOn(websiteCategoryRepository, "findOne").mockResolvedValue(null);
   });
 
   describe("Verified Places & Descriptions", () => {

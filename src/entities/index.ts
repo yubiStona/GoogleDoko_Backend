@@ -14,3 +14,7 @@ export * from "./reward-log.entity";
 export * from "./password-reset.entity";
 export * from "./lifestyle-collection.entity";
 export * from "./product-lifestyle.entity";
+export * from "./homepage-section.entity";
+export * from "./content-revision.entity";
+export * from "./website-page.entity";
+export * from "./website-category.entity";
